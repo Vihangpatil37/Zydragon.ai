@@ -28,6 +28,8 @@ import dynamic from "next/dynamic";
 const Mermaid = dynamic(() => import("../components/Mermaid"), {
   ssr: false,
 });
+import { LoginModal } from "@/components/LoginModal";
+import { LogOut } from "lucide-react";
 
 const FREE_MODELS = [
   { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
@@ -84,6 +86,8 @@ export default function Home() {
   // Layout states
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -101,6 +105,13 @@ export default function Home() {
       setIsDarkMode(false);
       document.documentElement.classList.remove("dark");
     }
+
+    // Check Auth
+    const token = localStorage.getItem("zydrakon_token");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+    setIsAuthChecking(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,7 +176,11 @@ export default function Home() {
       } else {
         await createNewSession();
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
+      if (err.status === 401) {
+        handleLogout();
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Failed to load sessions";
       setError(msg);
     }
@@ -260,7 +275,11 @@ export default function Home() {
       
       setMessages(prev => [...prev, assistantMessage]);
       await loadLimits(activeSessionId);
-    } catch (err: unknown) {
+    } catch (err: any) {
+      if (err.status === 401) {
+        handleLogout();
+        return;
+      }
       if (err instanceof ApiError && err.status === 429) {
         setRateLimitError({
           message: err.message,
@@ -273,6 +292,15 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("zydrakon_token");
+    localStorage.removeItem("zydrakon_active_session");
+    setIsAuthenticated(false);
+    setSessions([]);
+    setMessages([]);
+    setActiveSessionId(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -375,9 +403,20 @@ export default function Home() {
     });
   };
 
+  if (isAuthChecking) {
+    return <div className="h-screen w-screen bg-[var(--bg-main)] flex items-center justify-center text-[var(--accent-color)] animate-pulse">Loading...</div>;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-200">
       
+      {!isAuthenticated && (
+        <LoginModal onSuccess={(token) => {
+          setIsAuthenticated(true);
+          loadSessions();
+        }} />
+      )}
+
       {/* 1. Collapsible Sidebar */}
       <aside 
         className={`flex-shrink-0 flex flex-col h-full bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] transition-all duration-300 ease-in-out z-30 ${
@@ -519,6 +558,17 @@ export default function Home() {
             >
               {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             </button>
+
+            {/* Logout Button */}
+            {isAuthenticated && (
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                title="Log out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </header>
 
@@ -648,7 +698,7 @@ export default function Home() {
                                   <span>Sources ({msg.search_results.length})</span>
                                   {msg.search_query && (
                                     <span className="text-[10px] font-normal font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#22221f] border border-[var(--border-color)]">
-                                      Search: "{msg.search_query}"
+                                      Search: &quot;{msg.search_query}&quot;
                                     </span>
                                   )}
                                 </div>

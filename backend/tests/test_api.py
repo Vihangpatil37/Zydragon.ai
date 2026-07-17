@@ -1,10 +1,10 @@
 import os
 import pytest
-import sqlite3
 from fastapi.testclient import TestClient
 
 # Set testing environment variables before importing app
-os.environ["DATABASE_URL"] = "test_chat.db"
+os.environ["MONGODB_URL"] = "mongodb+srv://tavishyadrc_db_user:4vGp7yoBAAT91hip@zydrakon-ai.nueargp.mongodb.net/?appName=Zydrakon-AI"
+os.environ["MONGO_DB_NAME"] = "test_zydrakon"
 os.environ["OPENROUTER_API_KEY"] = "" # Keep it blank to test mock fallback
 os.environ["OPENCODE_API_KEY"] = "" # Keep it blank to test mock fallback in tests
 os.environ["RATE_LIMIT_DAILY"] = "5"
@@ -17,19 +17,20 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def setup_database():
-    # Setup test database
+    db = get_db()
+    
+    # We drop the collections to start fresh for each test
+    for collection in db.list_collection_names():
+        db.drop_collection(collection)
+        
+    # Setup test database indexes
     init_db()
+    
     yield
-    # Teardown: remove database file
-    db_path = "test_chat.db"
-    if os.path.exists(db_path):
-        # Close any active connections by garbage collecting sqlite connections
-        import gc
-        gc.collect()
-        try:
-            os.remove(db_path)
-        except Exception:
-            pass
+    
+    # Teardown: drop the collections
+    for collection in db.list_collection_names():
+        db.drop_collection(collection)
 
 def test_root_endpoint():
     response = client.get("/")

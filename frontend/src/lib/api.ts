@@ -24,8 +24,17 @@ export class ApiError extends Error {
 class ApiClient {
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
     const url = `${BACKEND_URL}${path}`;
+    
+    const token = typeof window !== 'undefined' ? localStorage.getItem("zydrakon_token") : null;
+    const headers: Record<string, string> = {
+      ...(options?.headers as Record<string, string> || {})
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, { ...options, headers });
       if (!response.ok) {
         let errorData: RequestErrorDetails;
         try {

@@ -32,7 +32,8 @@ export default function Mermaid({ chart, isDarkMode }: MermaidProps) {
         }
       });
       // Override parseError to prevent global uncaught exceptions during streaming
-      (mermaid as any).parseError = (err: any, hash: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+      (mermaid as any).parseError = (err: any, _hash: any) => {
         console.warn("Mermaid silent parse warning:", err);
       };
     } catch (e) {

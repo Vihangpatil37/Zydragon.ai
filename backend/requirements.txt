@@ -6,3 +6,6 @@ pydantic
 pydantic-settings
 pytest
 httpx
+pymongo
+PyJWT
+passlib[bcrypt]

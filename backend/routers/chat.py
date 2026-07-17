@@ -2,7 +2,7 @@ import time
 import uuid
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from backend.models.database import get_db
@@ -12,52 +12,46 @@ from backend.services.cache import cache_service
 from backend.services.rate_limiter import rate_limiter
 from backend.utils.config import settings
 from backend.utils.identity import detect_identity_query
+from backend.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
 
-def get_client_identifier(request: Request, session_id: str) -> str:
-    """Returns a unique rate limit identifier based on IP and session_id."""
+def get_client_identifier(request: Request, session_id: str, user_id: str) -> str:
+    """Returns a unique rate limit identifier based on IP, user_id and session_id."""
     ip = request.client.host if request.client else "unknown"
-    return f"{ip}:{session_id}"
+    return f"{ip}:{user_id}:{session_id}"
 
 @router.post("", response_model=ChatResponse)
-async def chat(chat_request: ChatRequest, request: Request):
+async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends(get_current_user)):
     session_id = chat_request.session_id
     message_content = chat_request.message
     model_used = chat_request.model or "meta-llama/llama-3-8b-instruct:free"
 
-    # Verify if session exists
-    conn = get_db()
-    cursor_session = conn.execute("SELECT id FROM sessions WHERE id = ?;", (session_id,))
-    if not cursor_session.fetchone():
-        conn.close()
-        raise HTTPException(status_code=404, detail="Session not found")
-    conn.close()
+    # Verify if session exists and belongs to user
+    db = get_db()
+    if not db.sessions.find_one({"id": session_id, "user_id": user["id"]}):
+        raise HTTPException(status_code=404, detail="Session not found or unauthorized")
 
     # Check if the query is an identity query (who made you, source code, pre-brain, etc.)
     identity_reply = detect_identity_query(message_content)
     if identity_reply:
         # Save user message and identity reply to db messages history
-        conn = get_db()
         try:
-            # User message
+            now = datetime.utcnow()
             user_msg_id = str(uuid.uuid4())
-            conn.execute(
-                "INSERT INTO messages (id, session_id, role, content, model_used) VALUES (?, ?, ?, ?, ?);",
-                (user_msg_id, session_id, "user", message_content, "zydrakon-orchestration")
-            )
-            # Assistant response
+            db.messages.insert_one({
+                "id": user_msg_id, "session_id": session_id, "role": "user", 
+                "content": message_content, "timestamp": now, "model_used": "zydrakon-orchestration"
+            })
+            
             asst_msg_id = str(uuid.uuid4())
-            conn.execute(
-                "INSERT INTO messages (id, session_id, role, content, model_used) VALUES (?, ?, ?, ?, ?);",
-                (asst_msg_id, session_id, "assistant", identity_reply, "zydrakon-orchestration")
-            )
-            conn.commit()
+            db.messages.insert_one({
+                "id": asst_msg_id, "session_id": session_id, "role": "assistant", 
+                "content": identity_reply, "timestamp": now, "model_used": "zydrakon-orchestration"
+            })
         except Exception as e:
             logger.error(f"Error saving identity interaction: {str(e)}")
-        finally:
-            conn.close()
 
         # Cache this response to speed up future identical lookups
         cache_service.cache_response(message_content, identity_reply, "zydrakon-orchestration")
@@ -70,7 +64,7 @@ async def chat(chat_request: ChatRequest, request: Request):
             latency_ms=1
         )
 
-    rate_limit_key = get_client_identifier(request, session_id)
+    rate_limit_key = get_client_identifier(request, session_id, user["id"])
 
     # 1. Enforce Rate Limiting
     is_limited, limit_type, details = rate_limiter.check_rate_limit(rate_limit_key)
@@ -99,28 +93,23 @@ async def chat(chat_request: ChatRequest, request: Request):
     cached_reply = cache_service.get_cached_response(message_content, model_used)
     if cached_reply:
         # Save user message and cached assistant reply to db messages history
-        conn = get_db()
         try:
-            # User message
+            now = datetime.utcnow()
             user_msg_id = str(uuid.uuid4())
-            conn.execute(
-                "INSERT INTO messages (id, session_id, role, content, model_used) VALUES (?, ?, ?, ?, ?);",
-                (user_msg_id, session_id, "user", message_content, model_used)
-            )
-            # Assistant response
+            db.messages.insert_one({
+                "id": user_msg_id, "session_id": session_id, "role": "user", 
+                "content": message_content, "timestamp": now, "model_used": model_used
+            })
+            
             asst_msg_id = str(uuid.uuid4())
-            conn.execute(
-                "INSERT INTO messages (id, session_id, role, content, model_used) VALUES (?, ?, ?, ?, ?);",
-                (asst_msg_id, session_id, "assistant", cached_reply, model_used)
-            )
-            conn.commit()
+            db.messages.insert_one({
+                "id": asst_msg_id, "session_id": session_id, "role": "assistant", 
+                "content": cached_reply, "timestamp": now, "model_used": model_used
+            })
         except Exception as e:
             logger.error(f"Error saving cached message interaction: {str(e)}")
-        finally:
-            conn.close()
 
         # We do not count cached queries against the rate limit! 
-        # This rewards users for cached hits and saves OpenRouter API quota.
         return ChatResponse(
             response=cached_reply,
             model_used=model_used,
@@ -131,20 +120,14 @@ async def chat(chat_request: ChatRequest, request: Request):
     # 3. Call OpenRouter (Uncached path)
     # Gather previous messages for context (last 6 messages)
     history_payload = []
-    conn = get_db()
     try:
-        cursor = conn.execute(
-            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 6;",
-            (session_id,)
-        )
-        rows = cursor.fetchall()
+        cursor = db.messages.find({"session_id": session_id}).sort("timestamp", -1).limit(6)
+        rows = list(cursor)
         # Since they are ordered by timestamp DESC, reverse them to be in chronological order
         for row in reversed(rows):
             history_payload.append({"role": row["role"], "content": row["content"]})
     except Exception as e:
         logger.error(f"Failed to fetch history context: {str(e)}")
-    finally:
-        conn.close()
 
     # Append current user query
     history_payload.append({"role": "user", "content": message_content})
@@ -167,27 +150,25 @@ async def chat(chat_request: ChatRequest, request: Request):
     latency_ms = int((time.time() - start_time) * 1000)
 
     # 4. Save interactions and cache results
-    conn = get_db()
     try:
+        now = datetime.utcnow()
         # Save user message
         user_msg_id = str(uuid.uuid4())
-        conn.execute(
-            "INSERT INTO messages (id, session_id, role, content, model_used) VALUES (?, ?, ?, ?, ?);",
-            (user_msg_id, session_id, "user", message_content, actual_model)
-        )
+        db.messages.insert_one({
+            "id": user_msg_id, "session_id": session_id, "role": "user", 
+            "content": message_content, "timestamp": now, "model_used": actual_model
+        })
         # Save assistant message
         asst_msg_id = str(uuid.uuid4())
         import json
-        search_results_json = json.dumps(search_results) if search_results else None
-        conn.execute(
-            "INSERT INTO messages (id, session_id, role, content, model_used, search_query, search_results) VALUES (?, ?, ?, ?, ?, ?, ?);",
-            (asst_msg_id, session_id, "assistant", reply_content, actual_model, search_query, search_results_json)
-        )
-        conn.commit()
+        
+        db.messages.insert_one({
+            "id": asst_msg_id, "session_id": session_id, "role": "assistant", 
+            "content": reply_content, "timestamp": now, "model_used": actual_model,
+            "search_query": search_query, "search_results": search_results
+        })
     except Exception as e:
         logger.error(f"Error saving live message interaction: {str(e)}")
-    finally:
-        conn.close()
 
     # Cache this response for the requested model and the actual model (to maximize cache hits)
     cache_service.cache_response(message_content, reply_content, actual_model)
@@ -207,8 +188,8 @@ async def chat(chat_request: ChatRequest, request: Request):
     )
 
 @router.get("/limits", response_model=RateLimitInfo)
-async def get_limits(session_id: str, request: Request):
-    rate_limit_key = get_client_identifier(request, session_id)
+async def get_limits(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    rate_limit_key = get_client_identifier(request, session_id, user["id"])
     limits = rate_limiter.get_remaining_limits(rate_limit_key)
     return RateLimitInfo(
         rpm_limit=limits["rpm_limit"],

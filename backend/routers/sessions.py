@@ -1,87 +1,88 @@
 import uuid
+import json
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from backend.models.database import get_db
 from backend.models.schemas import SessionResponse, MessageResponse, SessionListResponse, MessagesListResponse
+from backend.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 @router.post("", response_model=SessionResponse)
-async def create_session():
+async def create_session(user: dict = Depends(get_current_user)):
     session_id = str(uuid.uuid4())
-    conn = get_db()
+    db = get_db()
     try:
-        conn.execute("INSERT INTO sessions (id) VALUES (?);", (session_id,))
-        conn.commit()
-        return SessionResponse(id=session_id, created_at=datetime.utcnow().isoformat())
+        now = datetime.utcnow()
+        db.sessions.insert_one({"id": session_id, "created_at": now, "user_id": user["id"]})
+        # Note: if now is datetime object, isoformat() adds no Z unless timezone aware
+        return SessionResponse(id=session_id, created_at=now.isoformat() + "Z")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
-    finally:
-        conn.close()
 
 @router.get("", response_model=SessionListResponse)
-async def list_sessions():
-    conn = get_db()
+async def list_sessions(user: dict = Depends(get_current_user)):
+    db = get_db()
     try:
-        cursor = conn.execute("SELECT id, created_at FROM sessions ORDER BY created_at DESC;")
-        rows = cursor.fetchall()
-        sessions = [SessionResponse(id=row["id"], created_at=row["created_at"]) for row in rows]
+        cursor = db.sessions.find({"user_id": user["id"]}).sort("created_at", -1)
+        sessions = []
+        for doc in cursor:
+            dt = doc["created_at"]
+            dt_str = dt.isoformat() + "Z" if isinstance(dt, datetime) else dt
+            sessions.append(SessionResponse(id=doc["id"], created_at=dt_str))
         return SessionListResponse(sessions=sessions)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
-    finally:
-        conn.close()
 
 @router.delete("/{session_id}")
-async def delete_session(session_id: str):
-    conn = get_db()
+async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
+    db = get_db()
     try:
-        cursor = conn.execute("SELECT id FROM sessions WHERE id = ?;", (session_id,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Session not found")
+        result = db.sessions.delete_one({"id": session_id, "user_id": user["id"]})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Session not found or unauthorized")
         
-        # SQLite with PRAGMA foreign_keys = ON will cascade delete messages automatically
-        conn.execute("DELETE FROM sessions WHERE id = ?;", (session_id,))
-        conn.commit()
+        # Explicitly delete associated messages because MongoDB doesn't have CASCADE delete
+        db.messages.delete_many({"session_id": session_id})
+        
         return {"status": "success", "message": f"Session {session_id} deleted successfully"}
     except HTTPException as he:
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
-    finally:
-        conn.close()
 
 @router.get("/{session_id}/messages", response_model=MessagesListResponse)
-async def get_messages(session_id: str):
-    conn = get_db()
+async def get_messages(session_id: str, user: dict = Depends(get_current_user)):
+    db = get_db()
     try:
-        # First verify if session exists
-        cursor_session = conn.execute("SELECT id FROM sessions WHERE id = ?;", (session_id,))
-        if not cursor_session.fetchone():
-            raise HTTPException(status_code=404, detail="Session not found")
+        # First verify if session exists and belongs to user
+        session = db.sessions.find_one({"id": session_id, "user_id": user["id"]})
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found or unauthorized")
 
-        cursor = conn.execute(
-            "SELECT role, content, timestamp, model_used, search_query, search_results FROM messages WHERE session_id = ? ORDER BY timestamp ASC;",
-            (session_id,)
-        )
-        rows = cursor.fetchall()
-        import json
+        cursor = db.messages.find({"session_id": session_id}).sort("timestamp", 1)
         messages = []
-        for row in rows:
-            results_list = None
-            if row["search_results"]:
+        for doc in cursor:
+            dt = doc["timestamp"]
+            dt_str = dt.isoformat() + "Z" if isinstance(dt, datetime) else dt
+            
+            # Since search_results might be saved as a string (JSON) or a list (MongoDB)
+            # handle both to be safe
+            search_results = doc.get("search_results")
+            if isinstance(search_results, str):
                 try:
-                    results_list = json.loads(row["search_results"])
+                    search_results = json.loads(search_results)
                 except Exception:
                     pass
+
             messages.append(
                 MessageResponse(
-                    role=row["role"],
-                    content=row["content"],
-                    timestamp=row["timestamp"],
-                    model_used=row["model_used"],
-                    search_query=row["search_query"],
-                    search_results=results_list
+                    role=doc["role"],
+                    content=doc["content"],
+                    timestamp=dt_str,
+                    model_used=doc.get("model_used"),
+                    search_query=doc.get("search_query"),
+                    search_results=search_results
                 )
             )
         return MessagesListResponse(messages=messages)
@@ -89,5 +90,3 @@ async def get_messages(session_id: str):
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get messages: {str(e)}")
-    finally:
-        conn.close()

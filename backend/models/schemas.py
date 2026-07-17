@@ -7,6 +7,21 @@ class ChatRequest(BaseModel):
     model: Optional[str] = Field("meta-llama/llama-3-8b-instruct:free", description="Specific OpenRouter free model to use")
     thinking: Optional[bool] = Field(False, description="Enable thinking mode/websearch")
 
+class User(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
 class SearchResult(BaseModel):
     title: str
     url: str
