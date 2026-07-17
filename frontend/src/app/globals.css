@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Claude Warm Paper Light Mode Palette */
+  --bg-main: #fbfaf7;
+  --bg-sidebar: #f7f5f0;
+  --text-main: #191919;
+  --text-secondary: #65655f;
+  --border-color: #e6e4de;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --accent-color: #cc5a37; /* Clean rust/terracotta orange, signature Claude accent */
+  --accent-hover: #b24d2e;
+  --bg-user-msg: #f3f0e8;
+  --bg-code-header: #f1ede4;
+  --bg-code-body: #1e1e1e;
+}
+
+.dark {
+  /* Claude Deep Charcoal Dark Mode Palette */
+  --bg-main: #1b1b18;
+  --bg-sidebar: #22221f;
+  --text-main: #e6e6e2;
+  --text-secondary: #999994;
+  --border-color: #32322e;
+  --bg-card: #22221f;
+  --bg-input: #292926;
+  --accent-color: #e26e4a;
+  --accent-hover: #cc5a37;
+  --bg-user-msg: #2a2a26;
+  --bg-code-header: #2d2d2a;
+  --bg-code-body: #141412;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Claude style messages content uses a high-readability warm serif font for AI output */
+.claude-serif {
+  font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 1.0625rem;
+  line-height: 1.625;
+}
+
+/* Custom code formatting scrollbars */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 110, 0.2);
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 110, 0.4);
+}
+
+/* Bounce animations for message responses */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-message {
+  animation: fadeInUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.bounce-dot {
+  animation: bounce 1.2s infinite ease-in-out;
+}
+
+.delay-0 {
+  animation-delay: 0s;
+}
+
+.delay-150 {
+  animation-delay: 0.15s;
+}
+
+.delay-300 {
+  animation-delay: 0.3s;
+}
