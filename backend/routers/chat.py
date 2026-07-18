@@ -133,6 +133,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     history_payload.append({"role": "user", "content": message_content})
 
     thinking_mode = chat_request.thinking or False
+    agent_system_prompt = chat_request.agent_system_prompt or None
 
     start_time = time.time()
     try:
@@ -140,8 +141,10 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
             message=message_content,
             requested_model=model_used,
             history=history_payload,
-            thinking=thinking_mode
+            thinking=thinking_mode,
+            agent_system_prompt=agent_system_prompt
         )
+
     except HTTPException as he:
         raise he
     except Exception as e:

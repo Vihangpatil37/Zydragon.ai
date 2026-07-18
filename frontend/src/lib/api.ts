@@ -81,11 +81,17 @@ class ApiClient {
     return data.messages;
   }
 
-  async sendChatMessage(sessionId: string, message: string, model: string, thinking?: boolean): Promise<ChatResponse> {
+  async sendChatMessage(sessionId: string, message: string, model: string, thinking?: boolean, agentSystemPrompt?: string): Promise<ChatResponse> {
     return this.request<ChatResponse>("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, message, model, thinking }),
+      body: JSON.stringify({ 
+        session_id: sessionId, 
+        message, 
+        model, 
+        thinking,
+        agent_system_prompt: agentSystemPrompt || undefined
+      }),
     });
   }
 

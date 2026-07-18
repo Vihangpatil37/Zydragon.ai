@@ -19,7 +19,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Bot
 } from "lucide-react";
 import { Message, Session, RateLimits } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
@@ -30,16 +31,12 @@ const Mermaid = dynamic(() => import("../components/Mermaid"), {
 });
 import { LoginModal } from "@/components/LoginModal";
 import { LogOut } from "lucide-react";
+import { AgentsPanel, AGENTS } from "@/components/AgentsPanel";
 
 const FREE_MODELS = [
-  { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
-  { id: "poolside/laguna-m.1:free", name: "Laguna M.1 (Poolside) Free" },
-  { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "Nemotron-3 Ultra 550B (Nvidia) Free" },
-  { id: "meta-llama/llama-3-8b-instruct:free", name: "Llama 3 8B Free" },
-  { id: "google/gemma-2-9b-it:free", name: "Gemma 2 9B Free" },
-  { id: "mistralai/mistral-7b-instruct:free", name: "Mistral 7B Free" },
-  { id: "qwen/qwen-2-7b-instruct:free", name: "Qwen 2 7B Free" },
-  { id: "microsoft/phi-3-medium-128k-instruct:free", name: "Phi-3 Medium Free" }
+  { id: "zydrakon-free", name: "Zydrakon AI (Free)" },
+  { id: "zhipu-free", name: "Zydrakon AI (Gold)" },
+  { id: "zydrakon-premium", name: "Zydrakon AI Premium" }
 ];
 
 // Helper Component for Markdown Code Block
@@ -78,7 +75,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimitError, setRateLimitError] = useState<{ message: string; retryAfter?: string } | null>(null);
-  const [selectedModel, setSelectedModel] = useState("deepseek/deepseek-v4-flash");
+  const [selectedModel, setSelectedModel] = useState("zydrakon-free");
   const [limits, setLimits] = useState<RateLimits | null>(null);
   const [thinkingMode, setThinkingMode] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
@@ -89,10 +86,17 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  // Agents states
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("general-assistant");
+  const [showAgentsPanel, setShowAgentsPanel] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initialize: Load sessions, configure theme
+  // Derived agent object
+  const activeAgent = AGENTS.find(a => a.id === selectedAgentId) || AGENTS[AGENTS.length - 1];
+
+  // Initialize: Load sessions, configure theme, restore agent
   useEffect(() => {
     loadSessions();
     
@@ -112,6 +116,12 @@ export default function Home() {
       setIsAuthenticated(true);
     }
     setIsAuthChecking(false);
+
+    // Restore saved agent selection
+    const savedAgent = localStorage.getItem("zydrakon_agent");
+    if (savedAgent && AGENTS.some(a => a.id === savedAgent)) {
+      setSelectedAgentId(savedAgent);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -262,7 +272,8 @@ export default function Home() {
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await api.sendChatMessage(activeSessionId, userText, selectedModel, thinkingMode);
+      const agentPrompt = activeAgent.systemPrompt || undefined;
+      const response = await api.sendChatMessage(activeSessionId, userText, selectedModel, thinkingMode, agentPrompt);
       
       const assistantMessage: Message = {
         role: "assistant",
@@ -301,6 +312,11 @@ export default function Home() {
     setSessions([]);
     setMessages([]);
     setActiveSessionId(null);
+  };
+
+  const handleSelectAgent = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    localStorage.setItem("zydrakon_agent", agentId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -367,39 +383,107 @@ export default function Home() {
         return <CodeBlock key={index} code={code} language={language} />;
       }
 
-      const paragraphs = part.split(/\n\n+/);
-      return paragraphs.map((para, paraIdx) => {
-        // Bullet Points
-        if (para.startsWith("- ") || para.startsWith("* ") || para.startsWith("• ")) {
-          const lines = para.split("\n");
-          return (
-            <ul key={paraIdx} className="list-disc pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200">
-              {lines.map((line, lineIdx) => (
-                <li key={lineIdx}>
-                  {parseInlineText(line.replace(/^[-*•]\s+/, ""))}
-                </li>
-              ))}
-            </ul>
+      const lines = part.split("\n");
+      const elements: React.ReactNode[] = [];
+      let currentList: { type: "ul" | "ol"; items: string[] } | null = null;
+      let currentParagraph: string[] = [];
+
+      const flushParagraph = (key: string) => {
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={key} className="mb-4 text-slate-800 dark:text-slate-200 leading-relaxed text-sm md:text-md">
+              {parseInlineText(currentParagraph.join(" "))}
+            </p>
           );
+          currentParagraph = [];
+        }
+      };
+
+      const flushList = (key: string) => {
+        if (currentList) {
+          const ListTag = currentList.type === "ol" ? "ol" : "ul";
+          const listClass = currentList.type === "ol" 
+            ? "list-decimal pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200 text-sm md:text-md" 
+            : "list-disc pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200 text-sm md:text-md";
+          elements.push(
+            <ListTag key={key} className={listClass}>
+              {currentList.items.map((item, itemIdx) => (
+                <li key={itemIdx}>{parseInlineText(item)}</li>
+              ))}
+            </ListTag>
+          );
+          currentList = null;
+        }
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // 1. Empty lines trigger flushes
+        if (trimmed === "") {
+          flushParagraph(`p-${i}`);
+          flushList(`l-${i}`);
+          continue;
         }
 
-        // Headings
-        if (para.startsWith("### ")) {
-          return <h3 key={paraIdx} className="text-md font-bold text-black dark:text-white mb-2 mt-4">{parseInlineText(para.slice(4))}</h3>;
-        }
-        if (para.startsWith("## ")) {
-          return <h2 key={paraIdx} className="text-lg font-bold text-black dark:text-white mb-2 mt-4">{parseInlineText(para.slice(3))}</h2>;
-        }
-        if (para.startsWith("# ")) {
-          return <h1 key={paraIdx} className="text-xl font-bold text-black dark:text-white mb-3 mt-4">{parseInlineText(para.slice(2))}</h1>;
+        // 2. Headings
+        const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+        if (headingMatch) {
+          flushParagraph(`p-${i}`);
+          flushList(`l-${i}`);
+          const level = headingMatch[1].length;
+          const text = headingMatch[2];
+          const headingClass = level === 1 ? "text-xl font-bold text-black dark:text-white mb-3 mt-5"
+                             : level === 2 ? "text-lg font-bold text-black dark:text-white mb-2 mt-4"
+                             : level === 3 ? "text-md font-bold text-black dark:text-white mb-2 mt-4"
+                             : "text-sm font-bold text-black dark:text-white mb-1.5 mt-3"; // H4, H5, H6
+          const HeadingTag = `h${level}` as any;
+          elements.push(
+            <HeadingTag key={`h-${i}`} className={headingClass}>
+              {parseInlineText(text)}
+            </HeadingTag>
+          );
+          continue;
         }
 
-        return (
-          <p key={paraIdx} className="mb-4 text-slate-800 dark:text-slate-200">
-            {parseInlineText(para)}
-          </p>
-        );
-      });
+        // 3. Bullet points (Unordered)
+        const ulMatch = line.match(/^[-*•]\s+(.*)$/);
+        if (ulMatch) {
+          flushParagraph(`p-${i}`);
+          if (currentList && currentList.type !== "ul") {
+            flushList(`l-${i}`);
+          }
+          if (!currentList) {
+            currentList = { type: "ul", items: [] };
+          }
+          currentList.items.push(ulMatch[1]);
+          continue;
+        }
+
+        // 4. Ordered list points (1. Item)
+        const olMatch = line.match(/^(\d+)\.\s+(.*)$/);
+        if (olMatch) {
+          flushParagraph(`p-${i}`);
+          if (currentList && currentList.type !== "ol") {
+            flushList(`l-${i}`);
+          }
+          if (!currentList) {
+            currentList = { type: "ol", items: [] };
+          }
+          currentList.items.push(olMatch[2]);
+          continue;
+        }
+
+        // 5. Normal text line
+        flushList(`l-${i}`);
+        currentParagraph.push(line);
+      }
+
+      flushParagraph(`p-end`);
+      flushList(`l-end`);
+
+      return <div key={index}>{elements}</div>;
     });
   };
 
@@ -436,8 +520,8 @@ export default function Home() {
             </button>
           </div>
 
-          {/* New Chat Button */}
-          <div className="p-4">
+          {/* New Chat + Agents Buttons */}
+          <div className="p-4 space-y-2">
             <button
               onClick={createNewSession}
               className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl border border-[var(--border-color)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a] font-medium text-sm transition-colors text-[var(--text-main)] shadow-sm bg-[var(--bg-card)]"
@@ -449,6 +533,23 @@ export default function Home() {
               <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-sans text-[var(--text-secondary)] border border-[var(--border-color)] rounded bg-[var(--bg-sidebar)]">
                 Ctrl K
               </kbd>
+            </button>
+
+            {/* Agents Button */}
+            <button
+              onClick={() => setShowAgentsPanel(true)}
+              className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl border border-[var(--border-color)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a] font-medium text-sm transition-colors text-[var(--text-main)] shadow-sm bg-[var(--bg-card)] group"
+            >
+              <span className="flex items-center gap-2">
+                <Bot className="w-4 h-4 transition-colors" style={{ color: activeAgent.color }} />
+                Agents
+              </span>
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-white"
+                style={{ backgroundColor: activeAgent.color }}
+              >
+                {activeAgent.avatarLetter}
+              </span>
             </button>
           </div>
 
@@ -483,13 +584,6 @@ export default function Home() {
             })}
           </div>
 
-          {/* Sidebar Footer */}
-          <div className="p-4 border-t border-[var(--border-color)] bg-[#f3f1eb] dark:bg-[#1f1f1d] flex items-center justify-between text-xs text-[var(--text-secondary)]">
-            <span className="font-mono flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5 text-[var(--accent-color)]" />
-              SQLite cache active
-            </span>
-          </div>
         </div>
       </aside>
 
@@ -522,6 +616,23 @@ export default function Home() {
               </select>
               <Cpu className="w-3 h-3 text-[var(--text-secondary)] absolute right-0 top-2.5 pointer-events-none" />
             </div>
+
+            {/* Active Agent Badge */}
+            {activeAgent.id !== "general-assistant" && (
+              <button
+                onClick={() => setShowAgentsPanel(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all hover:opacity-80 cursor-pointer"
+                style={{
+                  borderColor: `${activeAgent.color}40`,
+                  color: activeAgent.color,
+                  backgroundColor: `${activeAgent.color}10`,
+                }}
+                title={`Active agent: ${activeAgent.name}`}
+              >
+                <activeAgent.icon className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">{activeAgent.name}</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -590,7 +701,7 @@ export default function Home() {
                 </h2>
                 
                 <p className="max-w-md mx-auto text-xs md:text-sm text-[var(--text-secondary)]">
-                  Zydrakon AI integrates OpenRouter free LLMs and optimizes response latency via local SQLite database cache.
+                  Zydrakon AI is your premium intelligent assistant. Ask a question to get started.
                 </p>
 
                 {/* Central Input Box */}
@@ -673,10 +784,17 @@ export default function Home() {
                       key={i}
                       className={`flex items-start gap-4 animate-message ${isUser ? "justify-end" : "justify-start"}`}
                     >
-                      {/* Avatar initial symbol */}
+                      {/* Avatar initial symbol — agent-colored */}
                       {!isUser && (
-                        <div className="w-8 h-8 rounded-full border border-[var(--border-color)] bg-[#f3f1eb] dark:bg-[#22221f] text-[11px] font-bold text-[var(--accent-color)] flex items-center justify-center flex-shrink-0 shadow-sm select-none">
-                          Z
+                        <div
+                          className="w-8 h-8 rounded-full border text-[11px] font-bold flex items-center justify-center flex-shrink-0 shadow-sm select-none"
+                          style={{
+                            borderColor: `${activeAgent.color}40`,
+                            backgroundColor: `${activeAgent.color}12`,
+                            color: activeAgent.color,
+                          }}
+                        >
+                          {activeAgent.avatarLetter}
                         </div>
                       )}
                       
@@ -689,8 +807,8 @@ export default function Home() {
                             </p>
                           </div>
                         ) : (
-                          // Assistant message rendered plain text in warm serif font (Claude Style!)
-                          <div className="claude-serif text-[var(--text-main)] pr-4 w-full">
+                          // Assistant message rendered plain text in clean sans-serif font (Claude/ChatGPT Style!)
+                          <div className="font-sans text-[var(--text-main)] pr-4 w-full leading-relaxed text-sm md:text-md">
                             {msg.search_results && msg.search_results.length > 0 && (
                               <div className="mb-4 w-full">
                                 <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-secondary)] mb-2 select-none">
@@ -761,10 +879,17 @@ export default function Home() {
                 {/* Enhanced AI Loading State */}
                 {isLoading && (
                   <div className="flex items-start gap-4 justify-start">
-                    {/* Spinning avatar ring */}
+                    {/* Spinning avatar ring — agent-colored */}
                     <div className="relative flex-shrink-0 mt-0.5">
-                      <div className="w-8 h-8 rounded-full bg-[#f3f1eb] dark:bg-[#22221f] text-[11px] font-bold text-[var(--accent-color)] flex items-center justify-center shadow-sm select-none border border-[var(--border-color)]">
-                        Z
+                      <div
+                        className="w-8 h-8 rounded-full text-[11px] font-bold flex items-center justify-center shadow-sm select-none border"
+                        style={{
+                          borderColor: `${activeAgent.color}40`,
+                          backgroundColor: `${activeAgent.color}12`,
+                          color: activeAgent.color,
+                        }}
+                      >
+                        {activeAgent.avatarLetter}
                       </div>
                       <div
                         className="absolute animate-spin rounded-full border-2 border-transparent"
@@ -898,8 +1023,6 @@ export default function Home() {
                       <Sparkles className={`w-3 h-3 ${thinkingMode ? "animate-pulse" : ""}`} />
                       <span>Thinking {thinkingMode ? "ON" : "OFF"}</span>
                     </button>
-                    
-                    <span className="text-[9px] font-mono opacity-80">Local SQLite cache filter active</span>
                   </div>
                   
                   <button
@@ -912,13 +1035,21 @@ export default function Home() {
                 </div>
               </div>
               <p className="text-[10px] text-center text-[var(--text-secondary)] mt-2 font-mono select-none">
-                Zydrakon AI compiles OpenRouter free models and filters duplicates via SQL index.
+                Zydrakon AI can make mistakes. Consider checking important information.
               </p>
             </div>
           </footer>
         )}
 
       </div>
+
+      {/* Agents Selection Panel */}
+      <AgentsPanel
+        isOpen={showAgentsPanel}
+        onClose={() => setShowAgentsPanel(false)}
+        selectedAgentId={selectedAgentId}
+        onSelectAgent={handleSelectAgent}
+      />
     </div>
   );
 }

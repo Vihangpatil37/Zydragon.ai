@@ -59,22 +59,7 @@ def detect_identity_query(message: str) -> Optional[str]:
             "- **Model Training:** I am a custom large language model trained by Raj Patil on a massive dataset of **828 Billion (828B+) data tokens** to understand and generate human-like text.\n"
             "- **Training Timeline:** My development and core model training phase commenced in **2024**.\n"
             "- **Architecture (\"Pre-Brain\"):** My neural network architecture (pre-brain) was designed and trained by Raj Patil, utilizing advanced transformer structures optimized for high reasoning capability and rapid processing.\n"
-            "- **Source Code & Weights:** The model architecture, training codebase, and weights are private proprietary assets developed by Raj Patil.\n\n"
-            "#### 📊 Core Architecture Workflow Diagram\n"
-            "```mermaid\n"
-            "graph TD\n"
-            "    User([User Chat UI]) -->|1. User Message| API[FastAPI Backend Router]\n"
-            "    API -->|2. Check Identity Query| Ident{Identity Utils}\n"
-            "    Ident -->|Matches| Local[Return Direct Response + Diagram]\n"
-            "    Ident -->|No Match| Cache{SQLite Cache Service}\n"
-            "    Cache -->|Cache Hit| DB[(SQLite DB)]\n"
-            "    Cache -->|Cache Miss| LM[OpenRouter LLM API]\n"
-            "    LM -->|Llama 3 / Gemma 2| Resp[Get Generated Answer]\n"
-            "    Resp -->|Save & Cache| DB\n"
-            "    Resp -->|3. Return Answer| API\n"
-            "    Local -->|3. Return Answer| API\n"
-            "    API -->|4. Render Markdown + Mermaid SVG| User\n"
-            "```\n"
+            "- **Source Code & Weights:** The model architecture, training codebase, and weights are private proprietary assets developed by Raj Patil."
         )
         
     return None

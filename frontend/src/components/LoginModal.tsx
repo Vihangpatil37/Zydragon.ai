@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { ShieldAlert, Sparkles, LogIn } from "lucide-react";
 
 interface LoginModalProps {
-  onSuccess: (token: str) => void;
+  onSuccess: (token: string) => void;
 }
 
 export function LoginModal({ onSuccess }: LoginModalProps) {

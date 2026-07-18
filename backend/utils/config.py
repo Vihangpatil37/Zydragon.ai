@@ -3,8 +3,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = ""
-    OPENCODE_API_KEY: str = ""
-    OPENCODE_BASE_URL: str = "https://opencode.ai/zen/v1"
+    MISTRAL_API_KEY: str = ""
+    MISTRAL_BASE_URL: str = "https://api.mistral.ai/v1"
+    ZHIPU_API_KEY: str = ""
+    ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
     FRONTEND_URL: str = "http://localhost:3000"
     RATE_LIMIT_RPM: int = 20
     RATE_LIMIT_DAILY: int = 50

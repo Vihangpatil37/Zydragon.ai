@@ -6,6 +6,8 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="The message content to query")
     model: Optional[str] = Field("meta-llama/llama-3-8b-instruct:free", description="Specific OpenRouter free model to use")
     thinking: Optional[bool] = Field(False, description="Enable thinking mode/websearch")
+    agent_system_prompt: Optional[str] = Field(None, description="Optional agent persona system prompt to prepend")
+
 
 class User(BaseModel):
     id: str

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "lucide-react": "^1.24.0",
     "mermaid": "^11.16.0",
     "mongodb": "^7.5.0",
