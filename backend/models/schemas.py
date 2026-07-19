@@ -14,6 +14,8 @@ class User(BaseModel):
     email: str
     name: Optional[str] = None
     picture: Optional[str] = None
+    tier: Optional[str] = "free"
+    allowed_models: Optional[List[str]] = None
 
 class UserCreate(BaseModel):
     email: str

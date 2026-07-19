@@ -41,6 +41,9 @@ export function LoginModal({ onSuccess }: LoginModalProps) {
       }
       
       localStorage.setItem("zydrakon_token", data.access_token);
+      if (data.user) {
+        localStorage.setItem("zydrakon_user", JSON.stringify(data.user));
+      }
       onSuccess(data.access_token);
     } catch (err: any) {
       setError(err.message || "Failed to authenticate");

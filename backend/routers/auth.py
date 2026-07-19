@@ -49,7 +49,9 @@ async def register(user_in: UserCreate):
         user=User(
             id=user_id,
             email=user_in.email,
-            name=user_in.name
+            name=user_in.name,
+            tier=new_user.get("tier", "free"),
+            allowed_models=new_user.get("allowed_models")
         )
     )
 
@@ -80,6 +82,8 @@ async def login(user_in: UserLogin):
         user=User(
             id=user["id"],
             email=user["email"],
-            name=user.get("name")
+            name=user.get("name"),
+            tier=user.get("tier", "free"),
+            allowed_models=user.get("allowed_models")
         )
     )

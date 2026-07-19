@@ -85,6 +85,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Agents states
@@ -106,10 +107,18 @@ export default function Home() {
     document.documentElement.classList.add("dark");
     localStorage.setItem("zydrakon_theme", "dark");
 
-    // Check Auth
+    // Check Auth & Restore User
     const token = localStorage.getItem("zydrakon_token");
+    const storedUser = localStorage.getItem("zydrakon_user");
     if (token) {
       setIsAuthenticated(true);
+      if (storedUser) {
+        try {
+          setCurrentUser(JSON.parse(storedUser));
+        } catch (e) {
+          console.error("Failed to parse stored user", e);
+        }
+      }
     }
     setIsAuthChecking(false);
 
@@ -322,8 +331,10 @@ export default function Home() {
 
   const handleLogout = () => {
     localStorage.removeItem("zydrakon_token");
+    localStorage.removeItem("zydrakon_user");
     localStorage.removeItem("zydrakon_active_session");
     setIsAuthenticated(false);
+    setCurrentUser(null);
     setSessions([]);
     setMessages([]);
     setActiveSessionId(null);
@@ -723,7 +734,10 @@ export default function Home() {
                 className="appearance-none bg-transparent hover:text-[var(--text-main)] font-semibold py-1 pl-1 pr-6 cursor-pointer focus:outline-none focus:ring-0 text-[var(--accent-color)] font-mono text-xs md:text-sm"
               >
                 {FREE_MODELS.map(m => {
-                  const isDisabled = thinkingMode && m.id === "zydrakon-free";
+                  const isDisabledByDeepResearch = thinkingMode && m.id === "zydrakon-free";
+                  const isLockedForUser = m.id === "zydrakon-premium" && (currentUser?.tier === "gold" || (currentUser?.allowed_models && !currentUser.allowed_models.includes("zydrakon-premium")));
+                  const isDisabled = isDisabledByDeepResearch || isLockedForUser;
+
                   return (
                     <option 
                       key={m.id} 
@@ -731,7 +745,7 @@ export default function Home() {
                       disabled={isDisabled}
                       className="bg-[var(--bg-main)] text-[var(--text-main)] font-sans disabled:opacity-40"
                     >
-                      {m.name} {isDisabled ? " (Not supported for Deep Research)" : ""}
+                      {isLockedForUser ? "🔒 " : ""}{m.name}{isLockedForUser ? " (Locked for Gold/Free Tier)" : isDisabledByDeepResearch ? " (Not supported for Deep Research)" : ""}
                     </option>
                   );
                 })}
