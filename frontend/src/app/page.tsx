@@ -974,9 +974,9 @@ export default function Home() {
 
                   return (
                     <div className="flex items-start gap-4 justify-start animate-message">
-                      {/* Fluid Iridescent Orb Video Loader (Dark Theme Only, No Borders) */}
+                      {/* Fluid Iridescent Orb Video Loader */}
                       <div className="relative flex-shrink-0 mt-0.5">
-                        <AgentLoader isDarkMode={isDarkMode} size={52} />
+                        <AgentLoader isDarkMode={isDarkMode} color={activeAgent.color} size={52} />
                       </div>
 
                       <div className="flex flex-col gap-2.5 min-w-[260px] max-w-sm select-none">

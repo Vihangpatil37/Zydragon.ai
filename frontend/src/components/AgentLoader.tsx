@@ -4,15 +4,16 @@ import React from "react";
 
 interface AgentLoaderProps {
   isDarkMode?: boolean;
+  color?: string;
   size?: number;
 }
 
 // ═══════════════════════════════════════════════════════
-// Liquid Iridescent Chromatic Orb Video Loader
-// Renders the sleek video orb directly without borders
+// Liquid Iridescent Chromatic Orb Video Loader Component
+// Formatted with a clean circular frame & agent-colored border glow
 // ═══════════════════════════════════════════════════════
 
-export function AgentLoader({ isDarkMode = true, size = 52 }: AgentLoaderProps) {
+export function AgentLoader({ isDarkMode = true, color = "#e26e4a", size = 52 }: AgentLoaderProps) {
   if (!isDarkMode) {
     return (
       <div 
@@ -23,8 +24,14 @@ export function AgentLoader({ isDarkMode = true, size = 52 }: AgentLoaderProps) 
 
   return (
     <div 
-      className="relative flex items-center justify-center select-none shrink-0"
-      style={{ width: size, height: size }}
+      className="relative flex items-center justify-center rounded-full overflow-hidden select-none shrink-0 border shadow-lg backdrop-blur-md"
+      style={{ 
+        width: size, 
+        height: size,
+        borderColor: `${color}45`,
+        backgroundColor: "#000000",
+        boxShadow: `0 0 20px ${color}25, 0 4px 16px rgba(0,0,0,0.5)`
+      }}
     >
       <video
         src="/loader.mp4"
@@ -32,7 +39,7 @@ export function AgentLoader({ isDarkMode = true, size = 52 }: AgentLoaderProps) 
         loop
         muted
         playsInline
-        className="w-full h-full object-contain mix-blend-screen pointer-events-none"
+        className="w-full h-full object-cover rounded-full pointer-events-none scale-110"
       />
     </div>
   );
