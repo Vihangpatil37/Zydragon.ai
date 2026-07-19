@@ -1,6 +1,6 @@
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
@@ -57,7 +57,7 @@ async def register(user_in: UserCreate):
         "hashed_password": hashed_password,
         "tier": tier_info["tier"],
         "allowed_models": tier_info["allowed_models"],
-        "created_at": datetime.now(timezone.utc)
+        "created_at": datetime.utcnow()
     }
     
     db.users.insert_one(new_user)

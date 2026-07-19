@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from backend.models.database import get_db
 
@@ -32,7 +32,7 @@ class CacheService:
         query_hash = self._get_hash(query)
         cache_id = str(uuid.uuid4())
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             db.cached_responses.update_one(
                 {"query_hash": query_hash, "model_used": model},
                 {"$set": {

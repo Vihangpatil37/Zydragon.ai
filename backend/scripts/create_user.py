@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from backend.models.database import get_db, init_db
 from backend.utils.auth import get_password_hash
 USERS = [
@@ -111,7 +111,7 @@ def create_gold_users():
                 "email": email,
                 "name": name,
                 "hashed_password": hashed_password,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.utcnow(),
                 "tier": tier,
                 "allowed_models": allowed_models
             }
