@@ -28,7 +28,7 @@ export function LoginModal({ onSuccess }: LoginModalProps) {
         ? { email, password } 
         : { email, password, name };
         
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${endpoint}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -86,7 +86,7 @@ export function LoginModal({ onSuccess }: LoginModalProps) {
               <input 
                 type="text" 
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 placeholder="John Doe"
                 className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-color)] focus:ring-1 focus:ring-[var(--accent-color)] transition-all text-[var(--text-main)] placeholder:text-slate-500"
                 required={!isLogin}
@@ -101,7 +101,7 @@ export function LoginModal({ onSuccess }: LoginModalProps) {
             <input 
               type="email" 
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               placeholder="you@example.com"
               className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-color)] focus:ring-1 focus:ring-[var(--accent-color)] transition-all text-[var(--text-main)] placeholder:text-slate-500"
               required
@@ -115,7 +115,7 @@ export function LoginModal({ onSuccess }: LoginModalProps) {
             <input 
               type="password" 
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[var(--accent-color)] focus:ring-1 focus:ring-[var(--accent-color)] transition-all text-[var(--text-main)] placeholder:text-slate-500"
               required

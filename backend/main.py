@@ -18,10 +18,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+import os
+
+cors_origins_str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
+
 # Set up CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

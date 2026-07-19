@@ -32,6 +32,18 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     if chat_request.thinking and model_used == "zydrakon-free":
         model_used = "zhipu-free"
 
+    # Enforce Premium model locking
+    if model_used == "zydrakon-premium":
+        is_premium_allowed = (
+            user.get("tier") == "premium"
+            or (user.get("allowed_models") and "zydrakon-premium" in user.get("allowed_models"))
+        )
+        if not is_premium_allowed:
+            raise HTTPException(
+                status_code=403,
+                detail="Zydrakon Premium model is locked for your account. Please upgrade to Premium."
+            )
+
     # Enforce User Allowed Models (Gold free tier model restrictions)
     allowed_models = user.get("allowed_models")
     if allowed_models and isinstance(allowed_models, list):

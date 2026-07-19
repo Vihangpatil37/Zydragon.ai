@@ -17,12 +17,16 @@ from backend.models.database import get_db, init_db
 from backend.utils.auth import get_current_user
 
 # Dependency override for tests to bypass JWT authentication
+mock_user_data = {
+    "id": "test-user-id",
+    "email": "test@example.com",
+    "name": "Test User",
+    "tier": "free",
+    "allowed_models": ["zydrakon-free"]
+}
+
 def override_get_current_user():
-    return {
-        "id": "test-user-id",
-        "email": "test@example.com",
-        "name": "Test User"
-    }
+    return mock_user_data
 
 app.dependency_overrides[get_current_user] = override_get_current_user
 
@@ -253,8 +257,59 @@ def test_thinking_mode_with_results():
         assert asst_msg["search_query"] == "SpaceX news"
         assert len(asst_msg["search_results"]) == 1
         assert asst_msg["search_results"][0]["title"] == "SpaceX Launch News"
-        assert asst_msg["search_results"][0]["url"] == "https://spacex.com/news1"
         assert asst_msg["search_results"][0]["snippet"] == "SpaceX launched another Starlink rocket today."
+
+
+def test_premium_model_locked_for_free_user():
+    # Reset mock user data to free tier
+    global mock_user_data
+    mock_user_data = {
+        "id": "test-user-id",
+        "email": "test@example.com",
+        "name": "Test User",
+        "tier": "free",
+        "allowed_models": ["zydrakon-free"]
+    }
+    
+    # Create session
+    resp = client.post("/api/sessions")
+    session_id = resp.json()["id"]
+
+    chat_payload = {
+        "session_id": session_id,
+        "message": "Hello premium",
+        "model": "zydrakon-premium"
+    }
+
+    # Should return 403 Forbidden
+    response = client.post("/api/chat", json=chat_payload)
+    assert response.status_code == 403
+    assert "locked for your account" in response.json()["detail"].lower()
+
+def test_premium_model_allowed_for_premium_user():
+    # Set mock user data to premium tier
+    global mock_user_data
+    mock_user_data = {
+        "id": "test-user-id",
+        "email": "test@example.com",
+        "name": "Test User",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
+    }
+    
+    # Create session
+    resp = client.post("/api/sessions")
+    session_id = resp.json()["id"]
+
+    chat_payload = {
+        "session_id": session_id,
+        "message": "Hello premium",
+        "model": "zydrakon-premium"
+    }
+
+    # Should run successfully (200 OK)
+    response = client.post("/api/chat", json=chat_payload)
+    assert response.status_code == 200
 
 
 

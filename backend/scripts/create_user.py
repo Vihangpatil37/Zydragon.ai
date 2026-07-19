@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 from backend.models.database import get_db, init_db
 from backend.utils.auth import get_password_hash
-
 USERS = [
     {
         "email": "jyash1730@gmail.com",
@@ -17,12 +16,73 @@ USERS = [
         "password": "75480@manjit",
         "tier": "gold",
         "allowed_models": ["zydrakon-free", "zhipu-free"]
+    },
+    {
+        "email": "ananyatarungarg@gmail.com",
+        "name": "Ananya Garg",
+        "password": "75748@ananya",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
+    },
+    {
+        "email": "vijay@ao.com",
+        "name": "Vijay",
+        "password": "98250@vijay",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
+    },
+    {
+        "email": "pranav@ao.com",
+        "name": "Pranav",
+        "password": "98240@pranv",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
+    },
+    {
+        "email": "jagrut@ao.com",
+        "name": "Jagrut",
+        "password": "72030@jagrut",
+        "tier": "gold",
+        "allowed_models": ["zydrakon-free", "zhipu-free"]
+    },
+    {
+        "email": "vikas@ao.com",
+        "name": "Vikas",
+        "password": "88664@vikas",
+        "tier": "gold",
+        "allowed_models": ["zydrakon-free", "zhipu-free"]
+    },
+    {
+        "email": "aditya@ao.com",
+        "name": "Aditya",
+        "password": "93745@aditya",
+        "tier": "gold",
+        "allowed_models": ["zydrakon-free", "zhipu-free"]
+    },
+    {
+        "email": "rajagamer8@gmail.com",
+        "name": "Raj",
+        "password": "87350@raj",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
+    },
+    {
+        "email": "vihangpatil37@gmail.com",
+        "name": "Vihang",
+        "password": "814033@vihang",
+        "tier": "premium",
+        "allowed_models": ["zydrakon-free", "zhipu-free", "zydrakon-premium"]
     }
 ]
 
 def create_gold_users():
     init_db()
     db = get_db()
+    
+    # Clean up typo user if it exists
+    deleted = db.users.delete_one({"email": "pranav@a0.com"})
+    if deleted.deleted_count > 0:
+        print("Removed typo user 'pranav@a0.com' from database.")
     
     for u in USERS:
         email = u["email"]

@@ -12,6 +12,23 @@ from backend.models.schemas import User, UserCreate, UserLogin
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
 
+TIER_CONFIG = {
+    # Group 1 - Gold (Free + Gold Access)
+    "jyash1730@gmail.com": {"tier": "gold", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]},
+    "manjit19102004@gmail.com": {"tier": "gold", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]},
+    "jagrut@ao.com": {"tier": "gold", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]},
+    "vikas@ao.com": {"tier": "gold", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]},
+    "aditya@ao.com": {"tier": "gold", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]},
+    
+    # Group 2 - Premium (Free + Gold + Premium Access)
+    "ananyatarungarg@gmail.com": {"tier": "premium", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free", "zydrakon-premium"]},
+    "vijay@ao.com": {"tier": "premium", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free", "zydrakon-premium"]},
+    "pranav@ao.com": {"tier": "premium", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free", "zydrakon-premium"]},
+    "rajagamer8@gmail.com": {"tier": "premium", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free", "zydrakon-premium"]},
+    "vihangpatil37@gmail.com": {"tier": "premium", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free", "zydrakon-premium"]},
+}
+
+
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str
@@ -31,11 +48,15 @@ async def register(user_in: UserCreate):
     user_id = str(uuid.uuid4())
     hashed_password = get_password_hash(user_in.password)
     
+    tier_info = TIER_CONFIG.get(user_in.email.lower().strip(), {"tier": "free", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]})
+    
     new_user = {
         "id": user_id,
         "email": user_in.email,
         "name": user_in.name,
         "hashed_password": hashed_password,
+        "tier": tier_info["tier"],
+        "allowed_models": tier_info["allowed_models"],
         "created_at": datetime.utcnow()
     }
     
@@ -74,6 +95,17 @@ async def login(user_in: UserLogin):
             headers={"WWW-Authenticate": "Bearer"},
         )
         
+    # Sync with TIER_CONFIG to upgrade/downgrade dynamically on login
+    tier_info = TIER_CONFIG.get(user["email"].lower().strip())
+    if tier_info:
+        if user.get("tier") != tier_info["tier"] or user.get("allowed_models") != tier_info["allowed_models"]:
+            db.users.update_one(
+                {"id": user["id"]}, 
+                {"$set": {"tier": tier_info["tier"], "allowed_models": tier_info["allowed_models"]}}
+            )
+            user["tier"] = tier_info["tier"]
+            user["allowed_models"] = tier_info["allowed_models"]
+            
     access_token = create_access_token(data={"sub": user["id"]})
     
     return AuthResponse(

@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  MessageSquare, 
-  Plus, 
-  Trash2, 
-  Send, 
-  Database, 
-  ShieldAlert, 
-  Cpu, 
+import {
+  MessageSquare,
+  Plus,
+  Trash2,
+  Send,
+  Database,
+  ShieldAlert,
+  Cpu,
   Zap,
   Sparkles,
   ArrowRight,
@@ -43,7 +43,7 @@ const FREE_MODELS = [
 // Helper Component for Markdown Code Block
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false);
-  
+
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
@@ -54,7 +54,7 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     <div className="my-4 rounded-xl overflow-hidden border border-[var(--border-color)] shadow-sm bg-[var(--bg-code-body)]">
       <div className="flex justify-between items-center bg-[var(--bg-code-header)] px-4 py-2 text-xs text-[var(--text-secondary)] font-mono border-b border-[var(--border-color)] select-none">
         <span>{language || "code"}</span>
-        <button 
+        <button
           onClick={handleCopy}
           className="hover:text-[var(--text-main)] transition-colors flex items-center gap-1 font-semibold"
         >
@@ -80,7 +80,7 @@ export default function Home() {
   const [limits, setLimits] = useState<RateLimits | null>(null);
   const [thinkingMode, setThinkingMode] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
-  
+
   // Layout states
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -101,7 +101,7 @@ export default function Home() {
   // Initialize: Load sessions, configure theme, restore agent
   useEffect(() => {
     loadSessions();
-    
+
     // Theme setup — Always Enforce Dark Mode
     setIsDarkMode(true);
     document.documentElement.classList.add("dark");
@@ -178,6 +178,14 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [isLoading, thinkingMode]);
 
+  // Safety reset: if selected model becomes locked for the current user, fall back to free model
+  useEffect(() => {
+    const isPremiumAllowed = currentUser?.tier === "premium" || (currentUser?.allowed_models && currentUser.allowed_models.includes("zydrakon-premium"));
+    if (!isPremiumAllowed && selectedModel === "zydrakon-premium") {
+      setSelectedModel("zydrakon-free");
+    }
+  }, [currentUser, selectedModel]);
+
   const toggleTheme = () => {
     if (isDarkMode) {
       setIsDarkMode(false);
@@ -194,7 +202,7 @@ export default function Home() {
     try {
       const data = await api.listSessions();
       setSessions(data);
-      
+
       const storedActive = localStorage.getItem("zydrakon_active_session");
       if (storedActive && data.some(s => s.id === storedActive)) {
         setActiveSessionId(storedActive);
@@ -233,7 +241,7 @@ export default function Home() {
   const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure you want to delete this session?")) return;
-    
+
     try {
       await api.deleteSession(sessionId);
     } catch (err: unknown) {
@@ -241,7 +249,7 @@ export default function Home() {
     } finally {
       const remainingSessions = sessions.filter(s => s.id !== sessionId);
       setSessions(remainingSessions);
-      
+
       if (activeSessionId === sessionId) {
         if (remainingSessions.length > 0) {
           setActiveSessionId(remainingSessions[0].id);
@@ -293,7 +301,7 @@ export default function Home() {
     try {
       const agentPrompt = activeAgent.systemPrompt || undefined;
       const response = await api.sendChatMessage(activeSessionId, userText, selectedModel, thinkingMode, agentPrompt);
-      
+
       const assistantMessage: Message = {
         role: "assistant",
         content: response.response,
@@ -302,7 +310,7 @@ export default function Home() {
         search_query: response.search_query,
         search_results: response.search_results
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
       await loadLimits(activeSessionId);
     } catch (err: any) {
@@ -389,11 +397,11 @@ export default function Home() {
         if (linkMatch) {
           const [, label, url] = linkMatch;
           return (
-            <a 
-              key={idx} 
-              href={url} 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              key={idx}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-[var(--accent-color)] hover:underline inline-flex items-center gap-0.5 font-medium"
             >
               {label}
@@ -413,7 +421,7 @@ export default function Home() {
       normalizedContent += "\n```";
     }
     const parts = normalizedContent.split(/(```[\s\S]*?```)/g);
-    
+
     return parts.map((part, index) => {
       if (part.startsWith("```") && part.endsWith("```")) {
         const match = part.match(/```(\w*)([\s\S]*?)```/);
@@ -424,11 +432,11 @@ export default function Home() {
         }
         if (language === "svg" || code.trim().startsWith("<svg")) {
           return (
-            <div 
+            <div
               key={index}
               className="my-4 p-4 flex justify-center items-center overflow-x-auto select-none max-w-full"
             >
-              <div 
+              <div
                 className="w-full flex justify-center max-w-full [&>svg]:max-w-full [&>svg]:h-auto select-none"
                 dangerouslySetInnerHTML={{ __html: code }}
               />
@@ -458,8 +466,8 @@ export default function Home() {
       const flushList = (key: string) => {
         if (currentList) {
           const ListTag = currentList.type === "ol" ? "ol" : "ul";
-          const listClass = currentList.type === "ol" 
-            ? "list-decimal pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200 text-sm md:text-md" 
+          const listClass = currentList.type === "ol"
+            ? "list-decimal pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200 text-sm md:text-md"
             : "list-disc pl-6 mb-4 space-y-1.5 text-slate-800 dark:text-slate-200 text-sm md:text-md";
           elements.push(
             <ListTag key={key} className={listClass}>
@@ -476,7 +484,7 @@ export default function Home() {
         if (currentTable && currentTable.length > 0) {
           let headers: string[] = [];
           let rows: string[][] = [];
-          
+
           if (currentTable.length >= 2 && currentTable[1].every(cell => /^:?-+:?$/.test(cell))) {
             headers = currentTable[0];
             rows = currentTable.slice(2);
@@ -534,12 +542,12 @@ export default function Home() {
         if (isTableRow) {
           flushParagraph(`p-${i}`);
           flushList(`l-${i}`);
-          
+
           const cells = trimmed
             .split("|")
             .slice(1, -1)
             .map(c => c.trim());
-            
+
           if (!currentTable) {
             currentTable = [];
           }
@@ -557,9 +565,9 @@ export default function Home() {
           const level = headingMatch[1].length;
           const text = headingMatch[2];
           const headingClass = level === 1 ? "text-xl font-bold text-black dark:text-white mb-3 mt-5"
-                             : level === 2 ? "text-lg font-bold text-black dark:text-white mb-2 mt-4"
-                             : level === 3 ? "text-md font-bold text-black dark:text-white mb-2 mt-4"
-                             : "text-sm font-bold text-black dark:text-white mb-1.5 mt-3";
+            : level === 2 ? "text-lg font-bold text-black dark:text-white mb-2 mt-4"
+              : level === 3 ? "text-md font-bold text-black dark:text-white mb-2 mt-4"
+                : "text-sm font-bold text-black dark:text-white mb-1.5 mt-3";
           const HeadingTag = `h${level}` as any;
           elements.push(
             <HeadingTag key={`h-${i}`} className={headingClass}>
@@ -616,25 +624,32 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-200">
-      
+
       {!isAuthenticated && (
         <LoginModal onSuccess={(token) => {
           setIsAuthenticated(true);
+          const storedUser = localStorage.getItem("zydrakon_user");
+          if (storedUser) {
+            try {
+              setCurrentUser(JSON.parse(storedUser));
+            } catch (e) {
+              console.error("Failed to parse stored user", e);
+            }
+          }
           loadSessions();
         }} />
       )}
 
       {/* 1. Collapsible Sidebar */}
-      <aside 
-        className={`flex-shrink-0 flex flex-col h-full bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] transition-all duration-300 ease-in-out z-30 ${
-          sidebarOpen ? "w-72" : "w-0 overflow-hidden border-r-0"
-        }`}
+      <aside
+        className={`flex-shrink-0 flex flex-col h-full bg-[var(--bg-sidebar)] border-r border-[var(--border-color)] transition-all duration-300 ease-in-out z-30 ${sidebarOpen ? "w-72" : "w-0 overflow-hidden border-r-0"
+          }`}
       >
         <div className="w-72 flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
             <span className="text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase">Zydrakon AI</span>
-            <button 
+            <button
               onClick={() => setSidebarOpen(false)}
               className="p-1 rounded-lg text-[var(--text-secondary)] hover:bg-slate-200 dark:hover:bg-[#32322e] hover:text-[var(--text-main)]"
               title="Close sidebar"
@@ -684,11 +699,10 @@ export default function Home() {
                 <div
                   key={s.id}
                   onClick={() => selectSession(s.id)}
-                  className={`group flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${
-                    isActive 
-                      ? "bg-[#eae8e2] dark:bg-[#2d2d2a] text-black dark:text-white font-medium" 
-                      : "hover:bg-[#f1ede4] dark:hover:bg-[#252522] text-[var(--text-secondary)] hover:text-[var(--text-main)]"
-                  }`}
+                  className={`group flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${isActive
+                    ? "bg-[#eae8e2] dark:bg-[#2d2d2a] text-black dark:text-white font-medium"
+                    : "hover:bg-[#f1ede4] dark:hover:bg-[#252522] text-[var(--text-secondary)] hover:text-[var(--text-main)]"
+                    }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
                     <MessageSquare className="w-4 h-4 flex-shrink-0 text-slate-500" />
@@ -735,13 +749,13 @@ export default function Home() {
               >
                 {FREE_MODELS.map(m => {
                   const isDisabledByDeepResearch = thinkingMode && m.id === "zydrakon-free";
-                  const isLockedForUser = m.id === "zydrakon-premium" && (currentUser?.tier === "gold" || (currentUser?.allowed_models && !currentUser.allowed_models.includes("zydrakon-premium")));
+                  const isLockedForUser = m.id === "zydrakon-premium" && !(currentUser?.tier === "premium" || (currentUser?.allowed_models && currentUser.allowed_models.includes("zydrakon-premium")));
                   const isDisabled = isDisabledByDeepResearch || isLockedForUser;
 
                   return (
-                    <option 
-                      key={m.id} 
-                      value={m.id} 
+                    <option
+                      key={m.id}
+                      value={m.id}
                       disabled={isDisabled}
                       className="bg-[var(--bg-main)] text-[var(--text-main)] font-sans disabled:opacity-40"
                     >
@@ -777,7 +791,7 @@ export default function Home() {
           <div className="flex items-center gap-4">
             {/* Usage Indicator Badge */}
             {limits && (
-              <div 
+              <div
                 className="text-[10px] font-mono text-[var(--text-secondary)] bg-[#f3f1eb] dark:bg-[#222220] border border-[var(--border-color)] px-2.5 py-1.5 rounded-lg flex items-center gap-1.5"
                 title={`RPM remaining: ${limits.rpm_remaining}/${limits.rpm_limit}`}
               >
@@ -804,7 +818,7 @@ export default function Home() {
         {/* Conversation Message Pane */}
         <main className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-8 scrollbar-thin">
           <div className="max-w-5xl mx-auto space-y-8">
-            
+
             {messages.length === 0 ? (
               // Claude-like central Welcoming screen
               <div className="flex flex-col items-center justify-center pt-20 pb-8 text-center space-y-6">
@@ -813,11 +827,11 @@ export default function Home() {
                     <Sparkles className="w-8 h-8 text-[var(--accent-color)]" />
                   </div>
                 </div>
-                
+
                 <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-black dark:text-white font-sans max-w-lg">
                   How can I help you today?
                 </h2>
-                
+
                 <p className="max-w-md mx-auto text-xs md:text-sm text-[var(--text-secondary)]">
                   Zydrakon AI is your premium intelligent assistant. Ask a question to get started.
                 </p>
@@ -835,33 +849,32 @@ export default function Home() {
                       className="w-full bg-transparent resize-none focus:outline-none text-[var(--text-main)] text-sm md:text-md placeholder-slate-400 min-h-[50px] max-h-[240px] pr-2"
                       disabled={isLoading}
                     />
-                    
+
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border-color)]/50">
                       <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#2e2e2a]"
                           title="Attach files (Mock)"
                         >
                           <Paperclip className="w-4 h-4 text-slate-500" />
                         </button>
-                        
+
                         <button
                           type="button"
                           onClick={handleToggleThinkingMode}
-                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${
-                            thinkingMode
-                              ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
-                              : "border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a]"
-                          }`}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${thinkingMode
+                            ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
+                            : "border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a]"
+                            }`}
                         >
                           <Sparkles className={`w-3 h-3 ${thinkingMode ? "animate-pulse" : ""}`} />
                           <span>Deep Research {thinkingMode ? "ON" : "OFF"}</span>
                         </button>
-                        
+
                         <span className="text-[10px] font-mono opacity-80 uppercase tracking-wider hidden sm:block">SQLite Duplicate Filter Active</span>
                       </div>
-                      
+
                       <button
                         onClick={handleSend}
                         disabled={isLoading || !inputText.trim()}
@@ -918,7 +931,7 @@ export default function Home() {
                           {activeAgent.avatarLetter}
                         </div>
                       )}
-                      
+
                       <div className={`flex flex-col max-w-[85%] ${isUser ? "items-end" : "items-start"} space-y-1.5`}>
                         {isUser ? (
                           // User message bubble box
@@ -1030,8 +1043,8 @@ export default function Home() {
                               ? loadingPhase === 0
                                 ? '🔍 Searching the web...'
                                 : loadingPhase === 1
-                                ? '📖 Reading sources...'
-                                : '🧠 Reasoning & composing...'
+                                  ? '📖 Reading sources...'
+                                  : '🧠 Reasoning & composing...'
                               : statusLabels[activeAgent.id] || "Thinking..."}
                           </span>
                         </div>
@@ -1042,11 +1055,10 @@ export default function Home() {
                             {(['Search', 'Read', 'Reason'] as const).map((label, i) => (
                               <span
                                 key={label}
-                                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-500 ${
-                                  loadingPhase >= i
-                                    ? 'border-transparent shadow-sm'
-                                    : 'border-[var(--border-color)] text-[var(--text-secondary)] opacity-30'
-                                }`}
+                                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-500 ${loadingPhase >= i
+                                  ? 'border-transparent shadow-sm'
+                                  : 'border-[var(--border-color)] text-[var(--text-secondary)] opacity-30'
+                                  }`}
                                 style={loadingPhase >= i ? {
                                   backgroundColor: `${activeAgent.color}20`,
                                   borderColor: `${activeAgent.color}50`,
@@ -1124,31 +1136,30 @@ export default function Home() {
                   className="w-full bg-transparent resize-none focus:outline-none text-[var(--text-main)] text-sm md:text-md placeholder-slate-400 min-h-[24px] max-h-[200px] pr-2 scrollbar-thin"
                   disabled={isLoading}
                 />
-                
+
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border-color)]/50">
                   <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)] select-none">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[#2e2e2a]"
                       title="Attach files (Mock)"
                     >
                       <Paperclip className="w-4 h-4 text-slate-500" />
                     </button>
-                    
+
                     <button
                       type="button"
                       onClick={handleToggleThinkingMode}
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${
-                        thinkingMode
-                          ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
-                          : "border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a]"
-                      }`}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${thinkingMode
+                        ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
+                        : "border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a]"
+                        }`}
                     >
                       <Sparkles className={`w-3 h-3 ${thinkingMode ? "animate-pulse" : ""}`} />
                       <span>Deep Research {thinkingMode ? "ON" : "OFF"}</span>
                     </button>
                   </div>
-                  
+
                   <button
                     onClick={handleSend}
                     disabled={isLoading || !inputText.trim()}

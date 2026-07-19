@@ -17,11 +17,31 @@ def get_db():
 def init_db():
     db = get_db()
     try:
-        # Setup TTL Indexes for automatic deletion every 1 hour (3600 seconds)
-        db.sessions.create_index("created_at", expireAfterSeconds=3600)
-        db.messages.create_index("timestamp", expireAfterSeconds=3600)
-        db.cached_responses.create_index("created_at", expireAfterSeconds=3600)
-        db.rate_limits.create_index("timestamp", expireAfterSeconds=3600)
+        ttl_seconds = 1800
+        
+        # Safely drop old TTL indexes if their expiration time is different
+        ttl_configs = [
+            ("sessions", "created_at"),
+            ("messages", "timestamp"),
+            ("cached_responses", "created_at"),
+            ("rate_limits", "timestamp")
+        ]
+        for col_name, field_name in ttl_configs:
+            try:
+                info = db[col_name].index_information()
+                idx_name = f"{field_name}_1"
+                if idx_name in info:
+                    if info[idx_name].get("expireAfterSeconds") != ttl_seconds:
+                        db[col_name].drop_index(idx_name)
+                        logging.info(f"Dropped old TTL index {idx_name} on {col_name}")
+            except Exception as e:
+                logging.warning(f"Failed to check/drop TTL index for {col_name}: {str(e)}")
+
+        # Setup TTL Indexes for automatic deletion every 30 minutes (1800 seconds)
+        db.sessions.create_index("created_at", expireAfterSeconds=ttl_seconds)
+        db.messages.create_index("timestamp", expireAfterSeconds=ttl_seconds)
+        db.cached_responses.create_index("created_at", expireAfterSeconds=ttl_seconds)
+        db.rate_limits.create_index("timestamp", expireAfterSeconds=ttl_seconds)
         
         # Normal Indexes for querying
         db.messages.create_index("session_id")
