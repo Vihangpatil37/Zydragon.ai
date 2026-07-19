@@ -34,48 +34,6 @@ class AuthResponse(BaseModel):
     token_type: str
     user: User
 
-@router.post("/register", response_model=AuthResponse)
-async def register(user_in: UserCreate):
-    db = get_db()
-    
-    # Check if user exists
-    if db.users.find_one({"email": user_in.email}):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists"
-        )
-        
-    user_id = str(uuid.uuid4())
-    hashed_password = get_password_hash(user_in.password)
-    
-    tier_info = TIER_CONFIG.get(user_in.email.lower().strip(), {"tier": "free", "allowed_models": ["zydrakon-free", "zhipu-free", "meta-llama/llama-3-8b-instruct:free"]})
-    
-    new_user = {
-        "id": user_id,
-        "email": user_in.email,
-        "name": user_in.name,
-        "hashed_password": hashed_password,
-        "tier": tier_info["tier"],
-        "allowed_models": tier_info["allowed_models"],
-        "created_at": datetime.utcnow()
-    }
-    
-    db.users.insert_one(new_user)
-    
-    access_token = create_access_token(data={"sub": user_id})
-    
-    return AuthResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=User(
-            id=user_id,
-            email=user_in.email,
-            name=user_in.name,
-            tier=new_user.get("tier", "free"),
-            allowed_models=new_user.get("allowed_models")
-        )
-    )
-
 @router.post("/login", response_model=AuthResponse)
 async def login(user_in: UserLogin):
     db = get_db()
