@@ -6,7 +6,8 @@ pydantic
 pydantic-settings
 pytest
 httpx
-pymongo
+pymongo[srv]
+certifi
 PyJWT
 passlib[bcrypt]
 bcrypt==4.0.1

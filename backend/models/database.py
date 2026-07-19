@@ -1,4 +1,5 @@
 import pymongo
+import certifi
 import logging
 from backend.utils.config import settings
 
@@ -9,7 +10,7 @@ _client = None
 def get_db():
     global _client
     if _client is None:
-        _client = pymongo.MongoClient(settings.MONGODB_URL)
+        _client = pymongo.MongoClient(settings.MONGODB_URL, tlsCAFile=certifi.where())
     # Use configurable database name, default to "zydrakon"
     db_name = os.getenv("MONGO_DB_NAME", "zydrakon")
     return _client[db_name]
