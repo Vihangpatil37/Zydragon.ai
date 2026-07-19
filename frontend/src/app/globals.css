@@ -3,19 +3,19 @@
 @tailwind utilities;
 
 :root {
-  /* Claude Warm Paper Light Mode Palette */
-  --bg-main: #fbfaf7;
-  --bg-sidebar: #f7f5f0;
-  --text-main: #191919;
-  --text-secondary: #65655f;
-  --border-color: #e6e4de;
-  --bg-card: #ffffff;
-  --bg-input: #ffffff;
-  --accent-color: #cc5a37; /* Clean rust/terracotta orange, signature Claude accent */
-  --accent-hover: #b24d2e;
-  --bg-user-msg: #f3f0e8;
-  --bg-code-header: #f1ede4;
-  --bg-code-body: #1e1e1e;
+  /* Claude Deep Charcoal Dark Mode Palette (Enforced Default) */
+  --bg-main: #1b1b18;
+  --bg-sidebar: #22221f;
+  --text-main: #e6e6e2;
+  --text-secondary: #999994;
+  --border-color: #32322e;
+  --bg-card: #22221f;
+  --bg-input: #292926;
+  --accent-color: #e26e4a;
+  --accent-hover: #cc5a37;
+  --bg-user-msg: #2a2a26;
+  --bg-code-header: #2d2d2a;
+  --bg-code-body: #141412;
 }
 
 .dark {

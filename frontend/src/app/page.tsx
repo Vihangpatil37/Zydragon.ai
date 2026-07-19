@@ -101,15 +101,10 @@ export default function Home() {
   useEffect(() => {
     loadSessions();
     
-    // Theme setup
-    const storedTheme = localStorage.getItem("zydrakon_theme");
-    if (storedTheme === "dark" || (!storedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      setIsDarkMode(true);
-      document.documentElement.classList.add("dark");
-    } else {
-      setIsDarkMode(false);
-      document.documentElement.classList.remove("dark");
-    }
+    // Theme setup — Always Enforce Dark Mode
+    setIsDarkMode(true);
+    document.documentElement.classList.add("dark");
+    localStorage.setItem("zydrakon_theme", "dark");
 
     // Check Auth
     const token = localStorage.getItem("zydrakon_token");
@@ -777,14 +772,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Dark Mode Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a] hover:text-[var(--text-main)]"
-              title="Toggle theme"
-            >
-              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
-            </button>
+
 
             {/* Logout Button */}
             {isAuthenticated && (
