@@ -27,6 +27,10 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     session_id = chat_request.session_id
     message_content = chat_request.message
     model_used = chat_request.model or "meta-llama/llama-3-8b-instruct:free"
+    
+    # Enforce Gold (zhipu-free) or Premium (zydrakon-premium) if thinking/Deep Research mode is enabled
+    if chat_request.thinking and model_used == "zydrakon-free":
+        model_used = "zhipu-free"
 
     # Verify if session exists and belongs to user
     db = get_db()

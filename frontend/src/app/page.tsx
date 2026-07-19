@@ -32,6 +32,7 @@ const Mermaid = dynamic(() => import("../components/Mermaid"), {
 import { LoginModal } from "@/components/LoginModal";
 import { LogOut } from "lucide-react";
 import { AgentsPanel, AGENTS } from "@/components/AgentsPanel";
+import { AgentLoader } from "@/components/AgentLoader";
 
 const FREE_MODELS = [
   { id: "zydrakon-free", name: "Zydrakon AI (Free)" },
@@ -319,6 +320,14 @@ export default function Home() {
     localStorage.setItem("zydrakon_agent", agentId);
   };
 
+  const handleToggleThinkingMode = () => {
+    const nextVal = !thinkingMode;
+    setThinkingMode(nextVal);
+    if (nextVal && selectedModel === "zydrakon-free") {
+      setSelectedModel("zhipu-free"); // Switch to Gold automatically
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter key submits the text, Shift+Enter adds newline
     if (e.key === "Enter" && !e.shiftKey) {
@@ -334,7 +343,7 @@ export default function Home() {
 
   // Helper parser for markdown tags
   const parseInlineText = (text: string) => {
-    const tokens = text.split(/(\*\*[^*]+\*\*|`[^`\n]+`)/g);
+    const tokens = text.split(/(\*\*[^*]+\*\*|`[^`\n]+`|\[[^\]]+\]\([^)]+\))/g);
     return tokens.map((token, idx) => {
       if (token.startsWith("**") && token.endsWith("**")) {
         return <strong key={idx} className="font-semibold text-black dark:text-white">{token.slice(2, -2)}</strong>;
@@ -345,6 +354,23 @@ export default function Home() {
             {token.slice(1, -1)}
           </code>
         );
+      }
+      if (token.startsWith("[") && token.includes("](") && token.endsWith(")")) {
+        const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+          const [, label, url] = linkMatch;
+          return (
+            <a 
+              key={idx} 
+              href={url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-[var(--accent-color)] hover:underline inline-flex items-center gap-0.5 font-medium"
+            >
+              {label}
+            </a>
+          );
+        }
       }
       return token;
     });
@@ -387,6 +413,7 @@ export default function Home() {
       const elements: React.ReactNode[] = [];
       let currentList: { type: "ul" | "ol"; items: string[] } | null = null;
       let currentParagraph: string[] = [];
+      let currentTable: string[][] | null = null;
 
       const flushParagraph = (key: string) => {
         if (currentParagraph.length > 0) {
@@ -416,6 +443,51 @@ export default function Home() {
         }
       };
 
+      const flushTable = (key: string) => {
+        if (currentTable && currentTable.length > 0) {
+          let headers: string[] = [];
+          let rows: string[][] = [];
+          
+          if (currentTable.length >= 2 && currentTable[1].every(cell => /^:?-+:?$/.test(cell))) {
+            headers = currentTable[0];
+            rows = currentTable.slice(2);
+          } else {
+            headers = currentTable[0];
+            rows = currentTable.slice(1);
+          }
+
+          rows = rows.filter(row => row.length > 0 && row.some(cell => cell !== ""));
+
+          elements.push(
+            <div key={key} className="my-4 overflow-x-auto rounded-xl border border-[var(--border-color)] shadow-sm bg-[var(--bg-sidebar)]">
+              <table className="min-w-full divide-y divide-[var(--border-color)] text-left text-xs md:text-sm font-sans">
+                <thead className="bg-slate-50 dark:bg-[#1a1a17] text-slate-800 dark:text-slate-200 font-semibold select-none">
+                  <tr>
+                    {headers.map((header, hIdx) => (
+                      <th key={hIdx} className="px-4 py-3 border-b border-[var(--border-color)]">
+                        {parseInlineText(header)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-color)]/60 text-slate-700 dark:text-slate-300">
+                  {rows.map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-slate-100/40 dark:hover:bg-[#252522]/40 transition-colors">
+                      {Array.from({ length: headers.length }).map((_, cIdx) => (
+                        <td key={cIdx} className="px-4 py-3 align-top whitespace-normal break-words">
+                          {parseInlineText(row[cIdx] || "")}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+          currentTable = null;
+        }
+      };
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const trimmed = line.trim();
@@ -424,10 +496,31 @@ export default function Home() {
         if (trimmed === "") {
           flushParagraph(`p-${i}`);
           flushList(`l-${i}`);
+          flushTable(`t-${i}`);
           continue;
         }
 
-        // 2. Headings
+        // 2. Table row detection
+        const isTableRow = trimmed.startsWith("|") && trimmed.endsWith("|");
+        if (isTableRow) {
+          flushParagraph(`p-${i}`);
+          flushList(`l-${i}`);
+          
+          const cells = trimmed
+            .split("|")
+            .slice(1, -1)
+            .map(c => c.trim());
+            
+          if (!currentTable) {
+            currentTable = [];
+          }
+          currentTable.push(cells);
+          continue;
+        } else {
+          flushTable(`t-${i}`);
+        }
+
+        // 3. Headings
         const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
         if (headingMatch) {
           flushParagraph(`p-${i}`);
@@ -437,7 +530,7 @@ export default function Home() {
           const headingClass = level === 1 ? "text-xl font-bold text-black dark:text-white mb-3 mt-5"
                              : level === 2 ? "text-lg font-bold text-black dark:text-white mb-2 mt-4"
                              : level === 3 ? "text-md font-bold text-black dark:text-white mb-2 mt-4"
-                             : "text-sm font-bold text-black dark:text-white mb-1.5 mt-3"; // H4, H5, H6
+                             : "text-sm font-bold text-black dark:text-white mb-1.5 mt-3";
           const HeadingTag = `h${level}` as any;
           elements.push(
             <HeadingTag key={`h-${i}`} className={headingClass}>
@@ -447,7 +540,7 @@ export default function Home() {
           continue;
         }
 
-        // 3. Bullet points (Unordered)
+        // 4. Bullet points (Unordered)
         const ulMatch = line.match(/^[-*•]\s+(.*)$/);
         if (ulMatch) {
           flushParagraph(`p-${i}`);
@@ -461,7 +554,7 @@ export default function Home() {
           continue;
         }
 
-        // 4. Ordered list points (1. Item)
+        // 5. Ordered list points (1. Item)
         const olMatch = line.match(/^(\d+)\.\s+(.*)$/);
         if (olMatch) {
           flushParagraph(`p-${i}`);
@@ -475,13 +568,14 @@ export default function Home() {
           continue;
         }
 
-        // 5. Normal text line
+        // 6. Normal text line
         flushList(`l-${i}`);
         currentParagraph.push(line);
       }
 
       flushParagraph(`p-end`);
       flushList(`l-end`);
+      flushTable(`t-end`);
 
       return <div key={index}>{elements}</div>;
     });
@@ -610,9 +704,19 @@ export default function Home() {
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="appearance-none bg-transparent hover:text-[var(--text-main)] font-semibold py-1 pl-1 pr-6 cursor-pointer focus:outline-none focus:ring-0 text-[var(--accent-color)] font-mono text-xs md:text-sm"
               >
-                {FREE_MODELS.map(m => (
-                  <option key={m.id} value={m.id} className="bg-[var(--bg-main)] text-[var(--text-main)] font-sans">{m.name}</option>
-                ))}
+                {FREE_MODELS.map(m => {
+                  const isDisabled = thinkingMode && m.id === "zydrakon-free";
+                  return (
+                    <option 
+                      key={m.id} 
+                      value={m.id} 
+                      disabled={isDisabled}
+                      className="bg-[var(--bg-main)] text-[var(--text-main)] font-sans disabled:opacity-40"
+                    >
+                      {m.name} {isDisabled ? " (Not supported for Deep Research)" : ""}
+                    </option>
+                  );
+                })}
               </select>
               <Cpu className="w-3 h-3 text-[var(--text-secondary)] absolute right-0 top-2.5 pointer-events-none" />
             </div>
@@ -646,20 +750,6 @@ export default function Home() {
                 <span>API Usage: <strong className="text-[var(--text-main)]">{limits.daily_limit - limits.daily_remaining}</strong>/{limits.daily_limit}</span>
               </div>
             )}
-
-            {/* Thinking Mode Toggle Switch */}
-            <button
-              onClick={() => setThinkingMode(!thinkingMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold font-sans transition-all select-none ${
-                thinkingMode
-                  ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
-                  : "border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[#eae8e2] dark:hover:bg-[#2d2d2a] hover:text-[var(--text-main)]"
-              }`}
-              title="Toggle Thinking & Web Search Mode"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${thinkingMode ? "animate-pulse" : ""}`} />
-              <span>Thinking Mode: {thinkingMode ? "ON" : "OFF"}</span>
-            </button>
 
             {/* Dark Mode Toggle */}
             <button
@@ -730,7 +820,7 @@ export default function Home() {
                         
                         <button
                           type="button"
-                          onClick={() => setThinkingMode(!thinkingMode)}
+                          onClick={handleToggleThinkingMode}
                           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${
                             thinkingMode
                               ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
@@ -738,7 +828,7 @@ export default function Home() {
                           }`}
                         >
                           <Sparkles className={`w-3 h-3 ${thinkingMode ? "animate-pulse" : ""}`} />
-                          <span>Thinking {thinkingMode ? "ON" : "OFF"}</span>
+                          <span>Deep Research {thinkingMode ? "ON" : "OFF"}</span>
                         </button>
                         
                         <span className="text-[10px] font-mono opacity-80 uppercase tracking-wider hidden sm:block">SQLite Duplicate Filter Active</span>
@@ -855,14 +945,6 @@ export default function Home() {
                         {/* Metadata row */}
                         <div className="flex items-center gap-2.5 text-[9px] font-mono text-[var(--text-secondary)] select-none">
                           <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {!isUser && msg.model_used && (
-                            <>
-                              <span>•</span>
-                              <span className="text-[var(--accent-color)] font-semibold tracking-wider uppercase">
-                                {msg.model_used.includes("mock") ? "DEV MODE" : msg.model_used.split("/").pop()?.replace(":free", "")}
-                              </span>
-                            </>
-                          )}
                         </div>
                       </div>
 
@@ -876,79 +958,95 @@ export default function Home() {
                   );
                 })}
 
-                {/* Enhanced AI Loading State */}
-                {isLoading && (
-                  <div className="flex items-start gap-4 justify-start">
-                    {/* Spinning avatar ring — agent-colored */}
-                    <div className="relative flex-shrink-0 mt-0.5">
-                      <div
-                        className="w-8 h-8 rounded-full text-[11px] font-bold flex items-center justify-center shadow-sm select-none border"
-                        style={{
-                          borderColor: `${activeAgent.color}40`,
-                          backgroundColor: `${activeAgent.color}12`,
-                          color: activeAgent.color,
-                        }}
-                      >
-                        {activeAgent.avatarLetter}
-                      </div>
-                      <div
-                        className="absolute animate-spin rounded-full border-2 border-transparent"
-                        style={{
-                          inset: '-3px',
-                          borderTopColor: 'var(--accent-color)',
-                          borderRightColor: 'var(--accent-color)',
-                          opacity: 0.6,
-                        }}
-                      />
-                    </div>
+                {/* ═══ Premium Agent-Aware Loading Animation ═══ */}
+                {isLoading && (() => {
+                  const statusLabels: Record<string, string> = {
+                    "software-dev-tutor": "Compiling knowledge...",
+                    "science-tutor": "Running experiments...",
+                    "biology-tutor": "Sequencing DNA...",
+                    "microbiology-tutor": "Culturing samples...",
+                    "project-manager": "Planning sprint...",
+                    "product-owner": "Mapping roadmap...",
+                    "deep-research": "Researching deeply...",
+                    "ppt-maker": "Building slides...",
+                    "general-assistant": "Thinking...",
+                  };
 
-                    <div className="flex flex-col gap-2.5 min-w-[240px] max-w-xs select-none">
-                      {/* Phase label */}
-                      <div className="flex items-center gap-2 text-xs font-mono text-[var(--text-secondary)]">
-                        <span className="text-[var(--accent-color)] font-semibold transition-all duration-500">
-                          {thinkingMode
-                            ? loadingPhase === 0
-                              ? '🔍 Searching the web...'
-                              : loadingPhase === 1
-                              ? '📖 Reading sources...'
-                              : '🧠 Reasoning & composing...'
-                            : loadingPhase === 0
-                            ? '⚡ Processing request...'
-                            : '✍️ Composing response...'}
-                        </span>
+                  return (
+                    <div className="flex items-start gap-4 justify-start animate-message">
+                      {/* Fluid Iridescent Orb Video Loader */}
+                      <div className="relative flex-shrink-0 mt-0.5">
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center border shadow-xl bg-black/60 overflow-hidden backdrop-blur-sm" style={{
+                          borderColor: `${activeAgent.color}30`,
+                          boxShadow: `0 4px 24px ${activeAgent.color}20, 0 0 40px ${activeAgent.color}10`,
+                        }}>
+                          <AgentLoader agentId={activeAgent.id} color={activeAgent.color} size={56} />
+                        </div>
                       </div>
 
-                      {/* Phase pills — only in thinking mode */}
-                      {thinkingMode && (
-                        <div className="flex items-center gap-1.5">
-                          {(['Search', 'Read', 'Reason'] as const).map((label, i) => (
-                            <span
-                              key={label}
-                              className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-500 ${
-                                loadingPhase >= i
-                                  ? 'bg-[var(--accent-color)]/15 border-[var(--accent-color)]/50 text-[var(--accent-color)]'
-                                  : 'border-[var(--border-color)] text-[var(--text-secondary)] opacity-30'
-                              }`}
-                            >
-                              {label}
-                            </span>
+                      <div className="flex flex-col gap-2.5 min-w-[260px] max-w-sm select-none">
+                        {/* Agent name + animated dots */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: activeAgent.color }}>
+                            {activeAgent.name}
+                          </span>
+                          <span className="flex gap-0.5">
+                            {[0, 1, 2].map(i => (
+                              <span key={i} className="w-1 h-1 rounded-full bounce-dot" style={{ backgroundColor: activeAgent.color, animationDelay: `${i * 0.15}s` }} />
+                            ))}
+                          </span>
+                        </div>
+
+                        {/* Status label */}
+                        <div className="flex items-center gap-2 text-xs font-mono">
+                          <span className="font-semibold transition-all duration-500" style={{ color: activeAgent.color }}>
+                            {thinkingMode
+                              ? loadingPhase === 0
+                                ? '🔍 Searching the web...'
+                                : loadingPhase === 1
+                                ? '📖 Reading sources...'
+                                : '🧠 Reasoning & composing...'
+                              : statusLabels[activeAgent.id] || "Thinking..."}
+                          </span>
+                        </div>
+
+                        {/* Deep Research phase pills */}
+                        {thinkingMode && (
+                          <div className="flex items-center gap-1.5">
+                            {(['Search', 'Read', 'Reason'] as const).map((label, i) => (
+                              <span
+                                key={label}
+                                className={`text-[9px] font-mono px-2 py-0.5 rounded-full border transition-all duration-500 ${
+                                  loadingPhase >= i
+                                    ? 'border-transparent shadow-sm'
+                                    : 'border-[var(--border-color)] text-[var(--text-secondary)] opacity-30'
+                                }`}
+                                style={loadingPhase >= i ? {
+                                  backgroundColor: `${activeAgent.color}20`,
+                                  borderColor: `${activeAgent.color}50`,
+                                  color: activeAgent.color,
+                                } : undefined}
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Shimmer skeleton lines */}
+                        <div className="space-y-2 pt-0.5">
+                          {[92, 75, 55].map((w, i) => (
+                            <div
+                              key={i}
+                              className="h-2 rounded-full loader-shimmer"
+                              style={{ width: `${w}%`, animationDelay: `${i * 200}ms` }}
+                            />
                           ))}
                         </div>
-                      )}
-
-                      {/* Skeleton shimmer lines */}
-                      <div className="space-y-2 pt-0.5">
-                        {[92, 75, 55].map((w, i) => (
-                          <div
-                            key={i}
-                            className="h-2 rounded-full bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-[#2a2a28] dark:via-[#3d3d39] dark:to-[#2a2a28] animate-pulse"
-                            style={{ width: `${w}%`, animationDelay: `${i * 180}ms` }}
-                          />
-                        ))}
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Network / Integration Errors */}
                 {error && (
@@ -1013,7 +1111,7 @@ export default function Home() {
                     
                     <button
                       type="button"
-                      onClick={() => setThinkingMode(!thinkingMode)}
+                      onClick={handleToggleThinkingMode}
                       className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold transition-all ${
                         thinkingMode
                           ? "bg-[var(--accent-color)] text-white border-[var(--accent-color)] shadow-sm"
@@ -1021,7 +1119,7 @@ export default function Home() {
                       }`}
                     >
                       <Sparkles className={`w-3 h-3 ${thinkingMode ? "animate-pulse" : ""}`} />
-                      <span>Thinking {thinkingMode ? "ON" : "OFF"}</span>
+                      <span>Deep Research {thinkingMode ? "ON" : "OFF"}</span>
                     </button>
                   </div>
                   

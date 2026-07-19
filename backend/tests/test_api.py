@@ -7,11 +7,24 @@ os.environ["MONGODB_URL"] = "mongodb+srv://tavishyadrc_db_user:4vGp7yoBAAT91hip@
 os.environ["MONGO_DB_NAME"] = "test_zydrakon"
 os.environ["OPENROUTER_API_KEY"] = "" # Keep it blank to test mock fallback
 os.environ["OPENCODE_API_KEY"] = "" # Keep it blank to test mock fallback in tests
+os.environ["MISTRAL_API_KEY"] = "" # Keep it blank to test mock fallback in tests
+os.environ["ZHIPU_API_KEY"] = "" # Keep it blank to test mock fallback in tests
 os.environ["RATE_LIMIT_DAILY"] = "5"
 os.environ["RATE_LIMIT_RPM"] = "3"
 
 from backend.main import app
 from backend.models.database import get_db, init_db
+from backend.utils.auth import get_current_user
+
+# Dependency override for tests to bypass JWT authentication
+def override_get_current_user():
+    return {
+        "id": "test-user-id",
+        "email": "test@example.com",
+        "name": "Test User"
+    }
+
+app.dependency_overrides[get_current_user] = override_get_current_user
 
 client = TestClient(app)
 

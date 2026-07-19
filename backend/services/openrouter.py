@@ -19,7 +19,7 @@ class OpenRouterClient:
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.api_key_index = 0
         self.mistral_api_url = f"{settings.MISTRAL_BASE_URL}/chat/completions"
-        self.mistral_key = settings.MISTRAL_API_KEY
+        self.mistral_key_index = 0
         self.mistral_model_index = 0
         self.mistral_models = ["mistral-large-latest", "mistral-medium-latest"]
         self.zhipu_api_url = f"{settings.ZHIPU_BASE_URL}/chat/completions"
@@ -34,6 +34,15 @@ class OpenRouterClient:
         model = self.mistral_models[self.mistral_model_index % len(self.mistral_models)]
         self.mistral_model_index = (self.mistral_model_index + 1) % len(self.mistral_models)
         return model
+
+    def _get_next_mistral_key(self) -> Optional[str]:
+        """Gets the next Mistral AI API key from a comma-separated list in round-robin fashion."""
+        keys = [k.strip() for k in settings.MISTRAL_API_KEY.split(",") if k.strip()]
+        if not keys:
+            return None
+        key = keys[self.mistral_key_index % len(keys)]
+        self.mistral_key_index = (self.mistral_key_index + 1) % len(keys)
+        return key
 
     def _get_next_zhipu_model(self) -> str:
         """Gets the next Zhipu AI model in a round-robin rotation."""
@@ -106,10 +115,11 @@ class OpenRouterClient:
                 logger.error(f"OpenRouter query generation call failed using key prefix {api_key[:12]}: {str(e)}")
 
         # Try Mistral AI fallback
-        if settings.MISTRAL_API_KEY:
+        mistral_key = self._get_next_mistral_key()
+        if mistral_key:
             try:
                 query_model = "open-mistral-7b"
-                return self._call_provider_api("Mistral", self.mistral_api_url, settings.MISTRAL_API_KEY, query_model, messages)
+                return self._call_provider_api("Mistral", self.mistral_api_url, mistral_key, query_model, messages)
             except Exception as e:
                 logger.error(f"Mistral query generation call failed: {str(e)}")
 
@@ -226,9 +236,10 @@ class OpenRouterClient:
         if requested_model == "zydrakon-free":
             selected_mistral_model = self._get_next_mistral_model()
             logger.info(f"Attempting Free Tier call to Mistral AI using model: {selected_mistral_model}")
-            if settings.MISTRAL_API_KEY:
+            mistral_key = self._get_next_mistral_key()
+            if mistral_key:
                 try:
-                    content = self._call_provider_api("Mistral", self.mistral_api_url, settings.MISTRAL_API_KEY, selected_mistral_model, messages_payload)
+                    content = self._call_provider_api("Mistral", self.mistral_api_url, mistral_key, selected_mistral_model, messages_payload)
                     return content, f"mistral/{selected_mistral_model}", search_query_used, search_results_list
                 except Exception as e:
                     logger.error(f"Free Tier Mistral call failed for {selected_mistral_model}: {str(e)}")
@@ -237,7 +248,7 @@ class OpenRouterClient:
                     fallback_mistral_model = "mistral-medium-latest" if selected_mistral_model == "mistral-large-latest" else "mistral-large-latest"
                     logger.info(f"Attempting Free Tier fallback call to Mistral AI using model: {fallback_mistral_model}")
                     try:
-                        content = self._call_provider_api("Mistral", self.mistral_api_url, settings.MISTRAL_API_KEY, fallback_mistral_model, messages_payload)
+                        content = self._call_provider_api("Mistral", self.mistral_api_url, mistral_key, fallback_mistral_model, messages_payload)
                         return content, f"mistral/{fallback_mistral_model}", search_query_used, search_results_list
                     except Exception as e2:
                         logger.error(f"Free Tier Mistral fallback failed for {fallback_mistral_model}: {str(e2)}")
@@ -298,10 +309,11 @@ class OpenRouterClient:
                         last_error = f"OpenRouter fallback (openrouter/free) error: {str(e2)}"
             
             # If OpenRouter and fallback fail, fall back to Mistral AI
-            if settings.MISTRAL_API_KEY:
+            mistral_key = self._get_next_mistral_key()
+            if mistral_key:
                 logger.info("Attempting Mistral AI fallback call using model: mistral-small-latest")
                 try:
-                    content = self._call_provider_api("Mistral", self.mistral_api_url, settings.MISTRAL_API_KEY, "mistral-small-latest", messages_payload)
+                    content = self._call_provider_api("Mistral", self.mistral_api_url, mistral_key, "mistral-small-latest", messages_payload)
                     return content, "mistral/mistral-small-latest", search_query_used, search_results_list
                 except Exception as e:
                     logger.error(f"Mistral AI fallback failed: {str(e)}")
@@ -324,10 +336,11 @@ class OpenRouterClient:
                 last_error = f"OpenRouter ({requested_model}) error: {str(e)}"
 
         # Phase 4b: Fallback to Mistral AI
-        if settings.MISTRAL_API_KEY:
+        mistral_key = self._get_next_mistral_key()
+        if mistral_key:
             logger.info("Attempting Mistral AI fallback call using model: mistral-small-latest")
             try:
-                content = self._call_provider_api("Mistral", self.mistral_api_url, settings.MISTRAL_API_KEY, "mistral-small-latest", messages_payload)
+                content = self._call_provider_api("Mistral", self.mistral_api_url, mistral_key, "mistral-small-latest", messages_payload)
                 return content, "mistral/mistral-small-latest", search_query_used, search_results_list
             except Exception as e:
                 logger.error(f"Mistral AI call failed: {str(e)}")

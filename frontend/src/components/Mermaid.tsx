@@ -23,12 +23,23 @@ export default function Mermaid({ chart, isDarkMode }: MermaidProps) {
         suppressErrorRendering: true,
         fontFamily: "var(--font-inter), sans-serif",
         themeVariables: {
-          background: isDarkMode ? "#151513" : "#fbfaf7",
+          background: isDarkMode ? "#1b1b18" : "#fbfaf7",
           primaryColor: isDarkMode ? "#e26e4a" : "#cc5a37",
-          lineColor: isDarkMode ? "#3e3e3a" : "#e4e2db",
-          primaryTextColor: isDarkMode ? "#f3f1eb" : "#1f1f1d",
-          secondaryColor: isDarkMode ? "#2d2d2a" : "#eae8e2",
-          tertiaryColor: isDarkMode ? "#1a1a18" : "#fbfaf7",
+          lineColor: isDarkMode ? "#32322e" : "#e6e4de",
+          primaryTextColor: isDarkMode ? "#e6e6e2" : "#191919",
+          secondaryColor: isDarkMode ? "#22221f" : "#f7f5f0",
+          tertiaryColor: isDarkMode ? "#292926" : "#ffffff",
+          // Subgraphs / Clusters customization to prevent white background
+          clusterBkg: isDarkMode ? "#22221f" : "#f7f5f0",
+          clusterBorder: isDarkMode ? "#32322e" : "#e6e4de",
+          subgraphBkg: isDarkMode ? "#22221f" : "#f7f5f0",
+          subgraphBorderColor: isDarkMode ? "#32322e" : "#e6e4de",
+          subgraphTitleColor: isDarkMode ? "#e6e6e2" : "#191919",
+          // Nodes customization
+          nodeBkg: isDarkMode ? "#22221f" : "#ffffff",
+          nodeBorder: isDarkMode ? "#32322e" : "#e6e4de",
+          textColor: isDarkMode ? "#e6e6e2" : "#191919",
+          mainBkg: isDarkMode ? "#1b1b18" : "#fbfaf7",
         }
       });
       // Override parseError to prevent global uncaught exceptions during streaming
@@ -42,6 +53,65 @@ export default function Mermaid({ chart, isDarkMode }: MermaidProps) {
 
     let isMounted = true;
 
+    // Helper to sanitize light style definitions in dark mode
+    const adjustColorsForDarkMode = (chartText: string): string => {
+      let adjusted = chartText;
+      
+      // Replace fill:#HEX colors with dark versions if they are too light
+      adjusted = adjusted.replace(/fill:#([A-Fa-f0-9]{3,6})/gi, (match, hex) => {
+        let fullHex = hex;
+        if (hex.length === 3) {
+          fullHex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        }
+        
+        const r = parseInt(fullHex.substring(0, 2), 16);
+        const g = parseInt(fullHex.substring(2, 4), 16);
+        const b = parseInt(fullHex.substring(4, 6), 16);
+        
+        // Luminance check (approximate)
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        if (luminance > 0.4) {
+          // Scale down brightness to ~15% for a rich dark shade
+          const dr = Math.round(r * 0.15);
+          const dg = Math.round(g * 0.15);
+          const db = Math.round(b * 0.15);
+          
+          const hexR = Math.max(22, dr).toString(16).padStart(2, '0');
+          const hexG = Math.max(22, dg).toString(16).padStart(2, '0');
+          const hexB = Math.max(22, db).toString(16).padStart(2, '0');
+          return `fill:#${hexR}${hexG}${hexB}`;
+        }
+        return match;
+      });
+
+      // Replace named light colors
+      const lightColorMap: Record<string, string> = {
+        'white': '#1b1b18',
+        '#ffffff': '#1b1b18',
+        '#fff': '#1b1b18',
+        'lightgray': '#22221f',
+        'lightgrey': '#22221f',
+        'gray': '#252522',
+        'grey': '#252522',
+        'pink': '#35181d',
+        'lightblue': '#182435',
+        'lightgreen': '#18351c',
+        'yellow': '#353018',
+      };
+      
+      for (const [lightColor, darkColor] of Object.entries(lightColorMap)) {
+        const regex = new RegExp(`fill:\\s*${lightColor}\\b`, 'gi');
+        adjusted = adjusted.replace(regex, `fill:${darkColor}`);
+      }
+
+      // Ensure text colors inside styling are light
+      adjusted = adjusted.replace(/color:#([A-Fa-f0-9]{3,6})/gi, 'color:#e6e6e2');
+      adjusted = adjusted.replace(/color:\s*(black|darkgrey|darkgray|#000000|#000)\b/gi, 'color:#e6e6e2');
+
+      return adjusted;
+    };
+
     const renderChart = async () => {
       if (!ref.current) return;
       try {
@@ -52,6 +122,11 @@ export default function Mermaid({ chart, isDarkMode }: MermaidProps) {
         // Clean up common LLM syntax issues (e.g. unquoted link labels with parentheses)
         let sanitizedChart = chart;
         sanitizedChart = sanitizedChart.replace(/\|([^"|\r\n]+)\|/g, '|"$1"|');
+        
+        // Apply dark mode adjustments if active
+        if (isDarkMode) {
+          sanitizedChart = adjustColorsForDarkMode(sanitizedChart);
+        }
         
         // Render the diagram
         const { svg: renderedSvg } = await mermaid.render(id, sanitizedChart);
@@ -92,15 +167,15 @@ export default function Mermaid({ chart, isDarkMode }: MermaidProps) {
   return (
     <div 
       ref={ref} 
-      className="my-4 p-4 flex justify-center items-center overflow-x-auto select-none max-w-full"
+      className="my-4 p-2 overflow-x-auto scrollbar-thin select-none max-w-full"
     >
       {svg ? (
         <div 
-          className="w-full flex justify-center max-w-full scrollbar-thin select-none [&>svg]:max-w-full [&>svg]:h-auto"
+          className="select-none [&>svg]:mx-auto [&>svg]:block [&>svg]:max-w-full [&>svg]:h-auto"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       ) : (
-        <div className="text-xs text-[var(--text-secondary)] animate-pulse font-mono py-4">
+        <div className="text-xs text-[var(--text-secondary)] animate-pulse font-mono py-4 text-center">
           Compiling vector diagram...
         </div>
       )}
