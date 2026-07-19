@@ -1,6 +1,6 @@
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from backend.models.database import get_db
 from backend.models.schemas import SessionResponse, MessageResponse, SessionListResponse, MessagesListResponse
@@ -13,7 +13,7 @@ async def create_session(user: dict = Depends(get_current_user)):
     session_id = str(uuid.uuid4())
     db = get_db()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         db.sessions.insert_one({"id": session_id, "created_at": now, "user_id": user["id"]})
         # Note: if now is datetime object, isoformat() adds no Z unless timezone aware
         return SessionResponse(id=session_id, created_at=now.isoformat() + "Z")

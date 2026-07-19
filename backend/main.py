@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.models.database import init_db
@@ -12,10 +13,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing Zydrakon AI Database...")
+    init_db()
+    logger.info("Zydrakon AI Database initialized successfully!")
+    yield
+
 app = FastAPI(
     title="Zydrakon AI Chatbot API",
     description="FastAPI Backend for Zydrakon AI chatbot powered by OpenRouter",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 import os
@@ -37,11 +46,6 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(sessions.router)
 
-@app.on_event("startup")
-def startup_event():
-    logger.info("Initializing Zydrakon AI Database...")
-    init_db()
-    logger.info("Zydrakon AI Database initialized successfully!")
 
 @app.get("/")
 def read_root():

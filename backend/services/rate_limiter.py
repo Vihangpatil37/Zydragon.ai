@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple, Dict, Any
 from backend.models.database import get_db
 from backend.utils.config import settings
@@ -19,7 +19,7 @@ class RateLimiter:
         db = get_db()
         try:
             # We don't need to manually DELETE old records because TTL index handles it every hour!
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             one_min_ago = now - timedelta(minutes=1)
             one_day_ago = now - timedelta(days=1)
 
@@ -45,6 +45,8 @@ class RateLimiter:
                 oldest_docs = list(cursor_oldest)
                 if oldest_docs:
                     oldest_time = oldest_docs[0]["timestamp"]
+                    if oldest_time.tzinfo is None:
+                        oldest_time = oldest_time.replace(tzinfo=timezone.utc)
                     elapsed = (now - oldest_time).total_seconds()
                     retry_after_sec = max(1, int(60 - elapsed))
                 
@@ -60,6 +62,8 @@ class RateLimiter:
                 oldest_docs_day = list(cursor_oldest_day)
                 if oldest_docs_day:
                     oldest_time_day = oldest_docs_day[0]["timestamp"]
+                    if oldest_time_day.tzinfo is None:
+                        oldest_time_day = oldest_time_day.replace(tzinfo=timezone.utc)
                     elapsed = (now - oldest_time_day).total_seconds()
                     retry_after_hours = max(1, int((86400 - elapsed) / 3600))
 
@@ -77,7 +81,7 @@ class RateLimiter:
         try:
             db.rate_limits.insert_one({
                 "identifier": identifier, 
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             })
         except Exception as e:
             logger.error(f"Error recording request to rate limits: {str(e)}")
@@ -86,7 +90,7 @@ class RateLimiter:
         """Returns details on current usage and remaining requests."""
         db = get_db()
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             one_min_ago = now - timedelta(minutes=1)
             one_day_ago = now - timedelta(days=1)
             

@@ -1,6 +1,6 @@
 import jwt
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -23,7 +23,7 @@ def create_access_token(data: dict) -> str:
     """Create a JWT with a 5-hour expiry."""
     to_encode = data.copy()
     # 5 hours expiry as requested
-    expire = datetime.utcnow() + timedelta(hours=5)
+    expire = datetime.now(timezone.utc) + timedelta(hours=5)
     to_encode.update({"exp": expire})
     
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm="HS256")

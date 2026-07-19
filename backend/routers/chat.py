@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from backend.models.database import get_db
 from backend.models.schemas import ChatRequest, ChatResponse, RateLimitInfo
 from backend.services.openrouter import openrouter_client
@@ -63,7 +63,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     if identity_reply:
         # Save user message and identity reply to db messages history
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             user_msg_id = str(uuid.uuid4())
             db.messages.insert_one({
                 "id": user_msg_id, "session_id": session_id, "role": "user", 
@@ -96,7 +96,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     if is_limited:
         if limit_type == "RPM_LIMITED":
             retry_seconds = details.get("retry_after_sec", 60)
-            retry_time = (datetime.utcnow() + timedelta(seconds=retry_seconds)).isoformat() + "Z"
+            retry_time = (datetime.now(timezone.utc) + timedelta(seconds=retry_seconds)).isoformat() + "Z"
             error_content = {
                 "status": "error",
                 "code": "RATE_LIMITED",
@@ -105,7 +105,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
             }
         else:
             retry_hours = details.get("retry_after_hours", 24)
-            retry_time = (datetime.utcnow() + timedelta(hours=retry_hours)).isoformat() + "Z"
+            retry_time = (datetime.now(timezone.utc) + timedelta(hours=retry_hours)).isoformat() + "Z"
             error_content = {
                 "status": "error",
                 "code": "RATE_LIMITED",
@@ -119,7 +119,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
     if cached_reply:
         # Save user message and cached assistant reply to db messages history
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             user_msg_id = str(uuid.uuid4())
             db.messages.insert_one({
                 "id": user_msg_id, "session_id": session_id, "role": "user", 
@@ -179,7 +179,7 @@ async def chat(chat_request: ChatRequest, request: Request, user: dict = Depends
 
     # 4. Save interactions and cache results
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Save user message
         user_msg_id = str(uuid.uuid4())
         db.messages.insert_one({
