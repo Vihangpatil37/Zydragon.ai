@@ -227,6 +227,9 @@ export default function Home() {
     
     try {
       await api.deleteSession(sessionId);
+    } catch (err: unknown) {
+      console.warn("Session delete notice:", err);
+    } finally {
       const remainingSessions = sessions.filter(s => s.id !== sessionId);
       setSessions(remainingSessions);
       
@@ -238,9 +241,6 @@ export default function Home() {
           await createNewSession();
         }
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to delete session";
-      setError(msg);
     }
   };
 

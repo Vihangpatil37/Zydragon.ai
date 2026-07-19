@@ -38,10 +38,7 @@ async def list_sessions(user: dict = Depends(get_current_user)):
 async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
     db = get_db()
     try:
-        result = db.sessions.delete_one({"id": session_id, "user_id": user["id"]})
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Session not found or unauthorized")
-        
+        db.sessions.delete_one({"id": session_id, "user_id": user["id"]})
         # Explicitly delete associated messages because MongoDB doesn't have CASCADE delete
         db.messages.delete_many({"session_id": session_id})
         
